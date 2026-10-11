@@ -1,0 +1,403 @@
+{
+  "schema": 1,
+  "distribution": "Pinned upstream tool files; no Kit checkout or menu required",
+  "upstream_commit": "c9dfd212e6f59188c74026b20bf96f2f06e339f9",
+  "architectures": {
+    "x86_64": [
+      {
+        "path": "irecovery",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/irecovery",
+        "sha256": "e91ba0da5df4c4cadf4deaee1e86ef67556153bec310ccb5d4827e5afee8187a",
+        "bytes": 200984,
+        "mode": 493
+      },
+      {
+        "path": "a6meowing",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/a6meowing",
+        "sha256": "cf8134a9ceffde0a62640771ba7d72cd009931c01b6d814ddb27a1a8292a3e24",
+        "bytes": 478664,
+        "mode": 493
+      },
+      {
+        "path": "gaster",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/gaster",
+        "sha256": "4440ec8ff95858ab65b2d7658880e00056e8395699be490f3552f3c895786237",
+        "bytes": 4563224,
+        "mode": 493
+      },
+      {
+        "path": "hfsplus",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/hfsplus",
+        "sha256": "9ae03743223c443c9ff0cebfad9f0c85fe1c6aec7ad1b2b7d1d935d554974602",
+        "bytes": 3508072,
+        "mode": 493
+      },
+      {
+        "path": "xpwntool",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/xpwntool",
+        "sha256": "6d1b8bf13288a35675ab27cf7f9e737e71b9f6e2ea9dc71642c27727398d313e",
+        "bytes": 1036440,
+        "mode": 493
+      },
+      {
+        "path": "iBoot32Patcher",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/iBoot32Patcher",
+        "sha256": "0056523d9bae3684c247edebc7b3967e1c5e5ac65032582e87eb240f487cf9a8",
+        "bytes": 103728,
+        "mode": 493
+      },
+      {
+        "path": "lib/libcrypto.so.35",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/lib/libcrypto.so.35",
+        "sha256": "bf2f5b2a27150bd578c658c43894f49486880719700968bfc1100bcac6ec9194",
+        "bytes": 7367840,
+        "mode": 420
+      },
+      {
+        "path": "lib/libssl.so.35",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/lib/libssl.so.35",
+        "sha256": "f27de5b2e2efac1493fca146002968fdf1aa575c754b4ccc07cdce1b94fa3969",
+        "bytes": 1754384,
+        "mode": 420
+      },
+      {
+        "path": "licenses/Legacy-iOS-Kit-GPL-3.0.txt",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/LICENSE",
+        "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+        "bytes": 35149,
+        "mode": 420
+      },
+      {
+        "path": "ideviceinfo",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/ideviceinfo",
+        "sha256": "eb1b459972664094ee5b64cb7ec744bc54d0b5295526f3bc5bbdb774678516c9",
+        "bytes": 751680,
+        "mode": 493
+      }
+    ],
+    "arm64": [
+      {
+        "path": "irecovery",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/irecovery",
+        "sha256": "e9981204ab9bb087c2470f6bb87628f96c8dbeef0cd9aa6846994de2a72bfe7c",
+        "bytes": 265072,
+        "mode": 493
+      },
+      {
+        "path": "a6meowing",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/a6meowing",
+        "sha256": "b533e93243b611e64f934ba19703cdb102faa610585cd66427ae7416ab29e3c2",
+        "bytes": 476872,
+        "mode": 493
+      },
+      {
+        "path": "gaster",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/gaster",
+        "sha256": "239910c6a38c1a61c0dc65a4bc315c65c0ab8118966d18d7d3032c655a33e02b",
+        "bytes": 3816448,
+        "mode": 493
+      },
+      {
+        "path": "hfsplus",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/hfsplus",
+        "sha256": "a19fe9ecb842cbe4f35ef1d3630a82ae6fd6cf6684aa4e862f72d978e2515c19",
+        "bytes": 3118736,
+        "mode": 493
+      },
+      {
+        "path": "xpwntool",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/xpwntool",
+        "sha256": "b832d34f457538e22fabb732d63c0be954e216fda104888fcbb3d059abbf81f1",
+        "bytes": 1086704,
+        "mode": 493
+      },
+      {
+        "path": "iBoot32Patcher",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/iBoot32Patcher",
+        "sha256": "70d8d74bcd966ccd28684ee4ba30029528b22b01bbd63a95cc462295a06fd7dd",
+        "bytes": 102552,
+        "mode": 493
+      },
+      {
+        "path": "lib/libcrypto.so.35",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/lib/libcrypto.so.35",
+        "sha256": "67d5aae9a6827f04124577d1a18fbd6592a61f29aebfc1be9b1a1864d6a955cb",
+        "bytes": 7539400,
+        "mode": 420
+      },
+      {
+        "path": "lib/libssl.so.35",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/lib/libssl.so.35",
+        "sha256": "9569682cfe32fb2bde79c3bceece01c560abd9e6b985087bbad6f1d519088a39",
+        "bytes": 1740872,
+        "mode": 420
+      },
+      {
+        "path": "licenses/Legacy-iOS-Kit-GPL-3.0.txt",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/LICENSE",
+        "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+        "bytes": 35149,
+        "mode": 420
+      },
+      {
+        "path": "ideviceinfo",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/ideviceinfo",
+        "sha256": "7d3d3baa79e560930e68066ea563e0f2d8e52713701d2ed7779e44a97388ab1c",
+        "bytes": 1060640,
+        "mode": 493
+      }
+    ]
+  },
+  "sources": {
+    "xpwn": {
+      "url": "https://codeload.github.com/xerub/xpwn/tar.gz/5b5ce71ea14761a53029ff41367905bc939c098c",
+      "sha256": "5d7a5c3ed901a1e0ae6331ce0345b49f65641688828e7d21ade3d67a332f5039",
+      "bytes": 16912606,
+      "commit": "5b5ce71ea14761a53029ff41367905bc939c098c"
+    },
+    "idevicerestore": {
+      "url": "https://codeload.github.com/libimobiledevice/idevicerestore/tar.gz/45145e9fdc8458022c61a4b87bd029b866d5bcdc",
+      "sha256": "e65641776a8e549c7233c63640f296306173b7114218ad0be99341996a79705b",
+      "bytes": 123102,
+      "commit": "45145e9fdc8458022c61a4b87bd029b866d5bcdc"
+    }
+  },
+  "source_repositories": {
+    "a6meowing": "https://github.com/LukeZGD/a6meowing",
+    "gaster": "https://github.com/LukeZGD/gaster",
+    "xpwn": "https://github.com/LukeZGD/daibutsuCFW",
+    "iBoot32Patcher": "https://github.com/LukeZGD/iBoot32Patcher",
+    "irecovery": "https://github.com/libimobiledevice/libirecovery",
+    "crypto-libraries": "https://www.libressl.org/"
+  },
+  "macos": {
+    "x86_64": [
+      {
+        "path": "irecovery",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/irecovery",
+        "sha256": "be3a19afa071e03df9f176767f2bf65c3497dc68a4f86de510a4ebb1507af10a",
+        "bytes": 118808,
+        "mode": 493
+      },
+      {
+        "path": "hfsplus",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/hfsplus",
+        "sha256": "c44bca3a442ed628ac39b416a7a02854b7d3005a68c654cd4844ff8933c13ee7",
+        "bytes": 4407268,
+        "mode": 493
+      },
+      {
+        "path": "xpwntool",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/xpwntool",
+        "sha256": "52aac23eb67e3c5d771a17d9140a89dc88ed904bdb5a9ee32e7110c47ce1aaf3",
+        "bytes": 530821,
+        "mode": 493
+      },
+      {
+        "path": "iBoot32Patcher",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/iBoot32Patcher",
+        "sha256": "0e0e924051cc9ad5e4b00aa1bad75fe9fd97d92d10297dac06f641bdec7f64cb",
+        "bytes": 212507,
+        "mode": 493
+      },
+      {
+        "path": "gaster",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/gaster",
+        "sha256": "1a208ff60ce42626da6574b8a6bcd8306e6220cf95c40b46c2ef1f4dee9b95f0",
+        "bytes": 121120,
+        "mode": 493
+      },
+      {
+        "path": "ideviceinfo",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/ideviceinfo",
+        "sha256": "9503754ca2bfb2435c0da68055c30dbe0a92d8eb55084afe95fe08e9ed306872",
+        "bytes": 117000,
+        "mode": 493
+      },
+      {
+        "path": "x86_64/ipwnder32",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/x86_64/ipwnder32",
+        "sha256": "8825b169d54450b47bc054112eb099fddef24971ee9ba61739f430d81eb9bd82",
+        "bytes": 88000,
+        "mode": 493
+      },
+      {
+        "path": "lib/libgeneral.0.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libgeneral.0.dylib",
+        "sha256": "28fcdf1df05ab20d806e040ed089f283741037b8b41c06dd6af0a866cb07b906",
+        "bytes": 163008,
+        "mode": 493
+      },
+      {
+        "path": "lib/libideviceactivation-1.0.2.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libideviceactivation-1.0.2.dylib",
+        "sha256": "9fb0d660c8119eae2faf4cfd5dfbb16a4ad382bf8bbf72518dd58777f1b0347b",
+        "bytes": 155008,
+        "mode": 493
+      },
+      {
+        "path": "lib/libimg4tool.0.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libimg4tool.0.dylib",
+        "sha256": "b31e9826a5f5549f6c49945dbb9e46033ca70c254f54918f6d032f46664bfb2d",
+        "bytes": 390672,
+        "mode": 493
+      },
+      {
+        "path": "lib/libimobiledevice-1.0.6.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libimobiledevice-1.0.6.dylib",
+        "sha256": "d640ac9bdade2705de787b7ca098fdf91cd4e01b5a601c8d4dc60f060b1a5352",
+        "bytes": 795360,
+        "mode": 493
+      },
+      {
+        "path": "lib/libimobiledevice-glue-1.0.0.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libimobiledevice-glue-1.0.0.dylib",
+        "sha256": "7d97645c07b94d2d603d3a3a9e4713f33bc15f9cd929cd1e520f9033e59ee89f",
+        "bytes": 244704,
+        "mode": 493
+      },
+      {
+        "path": "lib/libirecovery-1.0.5.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libirecovery-1.0.5.dylib",
+        "sha256": "2de7c2fac881d03743713328ec56cf6544037877141b18ec425a874625609eac",
+        "bytes": 224280,
+        "mode": 493
+      },
+      {
+        "path": "lib/libplist-2.0.12.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libplist-2.0.12.dylib",
+        "sha256": "835cbd7955865fe931e0a13d383723f01a3b7083e102ec488c3b891e96558a78",
+        "bytes": 393944,
+        "mode": 493
+      },
+      {
+        "path": "lib/libtatsu.0.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libtatsu.0.dylib",
+        "sha256": "8a1feaf8a9cc6634a4b45a705017d35dc949317002053bd6dc6140e39504b481",
+        "bytes": 187424,
+        "mode": 493
+      },
+      {
+        "path": "lib/libusbmuxd-2.0.7.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libusbmuxd-2.0.7.dylib",
+        "sha256": "d52e37e3d6fd6589e93c54dff81fd74018aec0b1e0ceb35b13cee785cdde6289",
+        "bytes": 155160,
+        "mode": 493
+      }
+    ],
+    "arm64": [
+      {
+        "path": "irecovery",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/irecovery",
+        "sha256": "be3a19afa071e03df9f176767f2bf65c3497dc68a4f86de510a4ebb1507af10a",
+        "bytes": 118808,
+        "mode": 493
+      },
+      {
+        "path": "hfsplus",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/hfsplus",
+        "sha256": "c44bca3a442ed628ac39b416a7a02854b7d3005a68c654cd4844ff8933c13ee7",
+        "bytes": 4407268,
+        "mode": 493
+      },
+      {
+        "path": "xpwntool",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/xpwntool",
+        "sha256": "52aac23eb67e3c5d771a17d9140a89dc88ed904bdb5a9ee32e7110c47ce1aaf3",
+        "bytes": 530821,
+        "mode": 493
+      },
+      {
+        "path": "iBoot32Patcher",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/iBoot32Patcher",
+        "sha256": "0e0e924051cc9ad5e4b00aa1bad75fe9fd97d92d10297dac06f641bdec7f64cb",
+        "bytes": 212507,
+        "mode": 493
+      },
+      {
+        "path": "gaster",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/gaster",
+        "sha256": "1a208ff60ce42626da6574b8a6bcd8306e6220cf95c40b46c2ef1f4dee9b95f0",
+        "bytes": 121120,
+        "mode": 493
+      },
+      {
+        "path": "ideviceinfo",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/ideviceinfo",
+        "sha256": "9503754ca2bfb2435c0da68055c30dbe0a92d8eb55084afe95fe08e9ed306872",
+        "bytes": 117000,
+        "mode": 493
+      },
+      {
+        "path": "ipwnder",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/ipwnder",
+        "sha256": "ba73e6633aa431a62c1e79156feff47fec37bb754fb831efe969b7c5c265c37f",
+        "bytes": 189035,
+        "mode": 493
+      },
+      {
+        "path": "lib/libgeneral.0.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libgeneral.0.dylib",
+        "sha256": "28fcdf1df05ab20d806e040ed089f283741037b8b41c06dd6af0a866cb07b906",
+        "bytes": 163008,
+        "mode": 493
+      },
+      {
+        "path": "lib/libideviceactivation-1.0.2.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libideviceactivation-1.0.2.dylib",
+        "sha256": "9fb0d660c8119eae2faf4cfd5dfbb16a4ad382bf8bbf72518dd58777f1b0347b",
+        "bytes": 155008,
+        "mode": 493
+      },
+      {
+        "path": "lib/libimg4tool.0.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libimg4tool.0.dylib",
+        "sha256": "b31e9826a5f5549f6c49945dbb9e46033ca70c254f54918f6d032f46664bfb2d",
+        "bytes": 390672,
+        "mode": 493
+      },
+      {
+        "path": "lib/libimobiledevice-1.0.6.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libimobiledevice-1.0.6.dylib",
+        "sha256": "d640ac9bdade2705de787b7ca098fdf91cd4e01b5a601c8d4dc60f060b1a5352",
+        "bytes": 795360,
+        "mode": 493
+      },
+      {
+        "path": "lib/libimobiledevice-glue-1.0.0.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libimobiledevice-glue-1.0.0.dylib",
+        "sha256": "7d97645c07b94d2d603d3a3a9e4713f33bc15f9cd929cd1e520f9033e59ee89f",
+        "bytes": 244704,
+        "mode": 493
+      },
+      {
+        "path": "lib/libirecovery-1.0.5.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libirecovery-1.0.5.dylib",
+        "sha256": "2de7c2fac881d03743713328ec56cf6544037877141b18ec425a874625609eac",
+        "bytes": 224280,
+        "mode": 493
+      },
+      {
+        "path": "lib/libplist-2.0.12.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libplist-2.0.12.dylib",
+        "sha256": "835cbd7955865fe931e0a13d383723f01a3b7083e102ec488c3b891e96558a78",
+        "bytes": 393944,
+        "mode": 493
+      },
+      {
+        "path": "lib/libtatsu.0.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libtatsu.0.dylib",
+        "sha256": "8a1feaf8a9cc6634a4b45a705017d35dc949317002053bd6dc6140e39504b481",
+        "bytes": 187424,
+        "mode": 493
+      },
+      {
+        "path": "lib/libusbmuxd-2.0.7.dylib",
+        "url": "https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/lib/libusbmuxd-2.0.7.dylib",
+        "sha256": "d52e37e3d6fd6589e93c54dff81fd74018aec0b1e0ceb35b13cee785cdde6289",
+        "bytes": 155160,
+        "mode": 493
+      }
+    ]
+  }
+}

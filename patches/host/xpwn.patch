@@ -1,0 +1,158 @@
+diff --git a/dmg/filevault.c b/dmg/filevault.c
+index 3bda9a0..f7c75ed 100644
+--- a/dmg/filevault.c
++++ b/dmg/filevault.c
+@@ -51,9 +51,9 @@ static void writeChunk(FileVaultInfo* info) {
+ 	myChunk = info->curChunk;
+ 
+ 	FLIPENDIAN(myChunk);
+-	HMAC_Init_ex(&(info->hmacCTX), NULL, 0, NULL, NULL);
+-	HMAC_Update(&(info->hmacCTX), (unsigned char *) &myChunk, sizeof(uint32_t));
+-	HMAC_Final(&(info->hmacCTX), msgDigest, &msgDigestLen);
++	HMAC_Init_ex(info->hmacCTX, NULL, 0, NULL, NULL);
++	HMAC_Update(info->hmacCTX, (unsigned char *) &myChunk, sizeof(uint32_t));
++	HMAC_Final(info->hmacCTX, msgDigest, &msgDigestLen);
+ 
+ 	AES_cbc_encrypt(info->chunk, buffer, info->blockSize, &(info->aesEncKey), msgDigest, AES_ENCRYPT);
+ 
+@@ -85,9 +85,9 @@ static void cacheChunk(FileVaultInfo* info, uint32_t chunk) {
+ 	info->curChunk = chunk;
+ 
+ 	FLIPENDIAN(chunk);
+-	HMAC_Init_ex(&(info->hmacCTX), NULL, 0, NULL, NULL);
+-	HMAC_Update(&(info->hmacCTX), (unsigned char *) &chunk, sizeof(uint32_t));
+-	HMAC_Final(&(info->hmacCTX), msgDigest, &msgDigestLen);
++	HMAC_Init_ex(info->hmacCTX, NULL, 0, NULL, NULL);
++	HMAC_Update(info->hmacCTX, (unsigned char *) &chunk, sizeof(uint32_t));
++	HMAC_Final(info->hmacCTX, msgDigest, &msgDigestLen);
+ 
+ 	AES_cbc_encrypt(buffer, info->chunk, info->blockSize, &(info->aesKey), msgDigest, AES_DECRYPT);
+ }
+@@ -177,7 +177,7 @@ void fvClose(AbstractFile* file) {
+ 		cacheChunk(info, 0);
+ 	}
+ 
+-	HMAC_CTX_cleanup(&(info->hmacCTX));
++	HMAC_CTX_free(info->hmacCTX);
+ 
+ 	if(info->headerDirty) {
+ 		if(info->version == 2) {
+@@ -234,8 +234,13 @@ AbstractFile* createAbstractFileFromFileVault(AbstractFile* file, const char* ke
+ 		hmacKey[i] = curByte;
+ 	}
+ 
+-	HMAC_CTX_init(&(info->hmacCTX));
+-	HMAC_Init_ex(&(info->hmacCTX), hmacKey, sizeof(hmacKey), EVP_sha1(), NULL);
++	info->hmacCTX = HMAC_CTX_new();
++	if(info->hmacCTX == NULL) {
++		free(info);
++		free(toReturn);
++		return NULL;
++	}
++	HMAC_Init_ex(info->hmacCTX, hmacKey, sizeof(hmacKey), EVP_sha1(), NULL);
+ 	AES_set_decrypt_key(aesKey, FILEVAULT_CIPHER_KEY_LENGTH * 8, &(info->aesKey));
+ 	AES_set_encrypt_key(aesKey, FILEVAULT_CIPHER_KEY_LENGTH * 8, &(info->aesEncKey));
+ 
+diff --git a/hfs/catalog.c b/hfs/catalog.c
+index a6cdc14..bf21de1 100644
+--- a/hfs/catalog.c
++++ b/hfs/catalog.c
+@@ -3,6 +3,19 @@
+ #include <time.h>
+ #include <hfs/hfsplus.h>
+ 
++static time_t hfsCurrentTime(void) {
++  const char* fixed = getenv("XPWN_HFS_FIXED_UNIX_TIME");
++  char* end;
++  long long value;
++
++  if(fixed == NULL || *fixed == '\0')
++    return time(NULL);
++
++  value = strtoll(fixed, &end, 10);
++  ASSERT(*end == '\0' && value >= 0, "invalid XPWN_HFS_FIXED_UNIX_TIME");
++  return (time_t) value;
++}
++
+ static inline void flipBSDInfo(HFSPlusBSDInfo* info) {
+   FLIPENDIAN(info->ownerID);
+   FLIPENDIAN(info->groupID);
+@@ -967,7 +980,7 @@ HFSCatalogNodeID newFolder(const char* pathName, Volume* volume) {
+   folder.flags = kHFSHasFolderCountMask;
+   folder.valence = 0;
+   folder.folderID = newFolderID;
+-  folder.createDate = UNIX_TO_APPLE_TIME(time(NULL));
++  folder.createDate = UNIX_TO_APPLE_TIME(hfsCurrentTime());
+   folder.contentModDate = folder.createDate;
+   folder.attributeModDate = folder.createDate;
+   folder.accessDate = folder.createDate;
+@@ -1061,7 +1074,7 @@ HFSCatalogNodeID newFile(const char* pathName, Volume* volume) {
+   file.flags = kHFSThreadExistsMask;
+   file.reserved1 = 0;
+   file.fileID = newFileID;
+-  file.createDate = UNIX_TO_APPLE_TIME(time(NULL));
++  file.createDate = UNIX_TO_APPLE_TIME(hfsCurrentTime());
+   file.contentModDate = file.createDate;
+   file.attributeModDate = file.createDate;
+   file.accessDate = file.createDate;
+@@ -1170,4 +1183,3 @@ BTree* openCatalogTree(io_func* file) {
+ 
+   return btree;
+ }
+-
+diff --git a/hfs/hfs.c b/hfs/hfs.c
+index d7ac9f7..627669b 100644
+--- a/hfs/hfs.c
++++ b/hfs/hfs.c
+@@ -321,11 +321,23 @@ void TestByteOrder()
+ 	endianness = byte[0] ? IS_LITTLE_ENDIAN : IS_BIG_ENDIAN;
+ }
+ 
++static int isReadOnlyCommand(const char* command)
++{
++	return strcmp(command, "ls") == 0 ||
++		strcmp(command, "cat") == 0 ||
++		strcmp(command, "extract") == 0 ||
++		strcmp(command, "extractall") == 0 ||
++		strcmp(command, "getattr") == 0 ||
++		strcmp(command, "debug") == 0;
++}
++
+ 
+ int main(int argc, const char *argv[]) {
+ 	io_func* io;
+ 	Volume* volume;
+ 	AbstractFile* image;
++	const char* command;
++	const char* imageMode;
+ 	
+ 	TestByteOrder();
+ 	
+@@ -334,7 +346,13 @@ int main(int argc, const char *argv[]) {
+ 		return 0;
+ 	}
+ 	
+-	image = createAbstractFileFromFile(fopen(argv[1], "r+b"));
++	command = (argc > 4 && strcmp(argv[2], "-k") == 0) ? argv[4] : argv[2];
++	imageMode = isReadOnlyCommand(command) ? "rb" : "r+b";
++	image = createAbstractFileFromFile(fopen(argv[1], imageMode));
++	if(image == NULL) {
++		fprintf(stderr, "error: Cannot open image-file in %s mode.\n", imageMode);
++		return 1;
++	}
+ 	if(argc > 3 && strcmp(argv[2], "-k") == 0) {
+ 		AbstractFile *tmp = createAbstractFileFromFileVault(image, argv[3]);
+ 		if (tmp) {
+diff --git a/includes/dmg/filevault.h b/includes/dmg/filevault.h
+index 42cd0f4..0d04f7c 100644
+--- a/includes/dmg/filevault.h
++++ b/includes/dmg/filevault.h
+@@ -79,7 +79,7 @@ typedef struct FileVaultInfo {
+ 
+ 	AbstractFile*	file;
+ 
+-	HMAC_CTX	hmacCTX;
++	HMAC_CTX	*hmacCTX;
+ 	AES_KEY		aesKey;
+ 	AES_KEY		aesEncKey;
+ 

@@ -1,0 +1,107 @@
+--- a/src/idevicerestore.c
++++ b/src/idevicerestore.c
+@@ -299,6 +299,8 @@
+ 			client->ecid = event->device_info->ecid;
+ 		}
+ 		if (client->ecid && event->device_info->ecid == client->ecid) {
++			/* Normal USB descriptors are classified by usbmuxd, not recovery. */
++			if ((int)event->mode == 0x12a8) return;
+ 			mutex_lock(&client->device_event_mutex);
+ 			switch (event->mode) {
+ 				case IRECV_K_WTF_MODE:
+@@ -1025,6 +1027,24 @@
+ 			plist_dict_set_item(inf, "Variant", plist_new_string((client->flags & FLAG_ERASE) ? "Customer " RESTORE_VARIANT_ERASE_INSTALL : "Customer " RESTORE_VARIANT_UPGRADE_INSTALL));
+ 			plist_dict_set_item(build_identity, "Info", inf);
+ 
++			/* Preserve the custom iOS 6 AP identity; use Apple's latest BB identity. */
++			plist_t native_bb = plist_dict_get_item(client->build_manifest, "Project5CBasebandIdentity");
++			if (native_bb) {
++				plist_t board = plist_access_path(native_bb, 2, "Info", "DeviceClass");
++				const char* bbboard = board ? plist_get_string_ptr(board, NULL) : NULL;
++				plist_t bb = plist_access_path(native_bb, 2, "Manifest", "BasebandFirmware");
++				if (!bbboard || strcmp(bbboard, lcmodel) || !bb) {
++					logger(LL_ERROR, "Native baseband manifest does not match this device\n");
++					return -1;
++				}
++				const char* fields[] = {"ApBoardID", "ApChipID", "ApSecurityDomain", "UniqueBuildID", "BbChipID",
++					"BbProvisioningManifestKeyHash", "BbActivationManifestKeyHash", "BbCalibrationManifestKeyHash", "BbSkeyId", NULL};
++				for (int i = 0; fields[i]; i++) {
++					plist_t value = plist_dict_get_item(native_bb, fields[i]);
++					if (value) plist_dict_set_item(build_identity, fields[i], plist_copy(value));
++				}
++				plist_dict_set_item(manifest, "BasebandFirmware", plist_copy(bb));
++			}
+ 			// finally add manifest
+ 			plist_dict_set_item(build_identity, "Manifest", manifest);
+ 		}
+@@ -1469,7 +1489,8 @@
+ 		return -1;
+ 	}
+ 
+-	if (!client->image4supported && (client->build_major > 8)) {
++	/* An already running restored has no recovery endpoint for ApNonce. */
++	if (!client->image4supported && (client->build_major > 8) && client->mode != MODE_RESTORE) {
+ 		// we need another tss request with nonce.
+ 		unsigned char* nonce = NULL;
+ 		unsigned int nonce_size = 0;
+--- a/src/restore.c
++++ b/src/restore.c
+@@ -2239,6 +2239,12 @@
+ 
+ static int restore_send_baseband_data(struct idevicerestore_client_t* client, plist_t message)
+ {
++	/* Fail before any modem TSS request or payload transfer on this custom path. */
++	if (client && client->restore && (client->flags & FLAG_CUSTOM) && client->restore->protocol_version == 12 &&
++	    client->device && (!strcmp(client->device->hardware_model, "n49ap") || !strcmp(client->device->hardware_model, "n48ap"))) {
++		logger(LL_ERROR, "Baseband transfer is disabled for the 5c iOS 6 restore path\n");
++		return -1;
++	}
+ 	int res = -1;
+ 	uint64_t bb_cert_id = 0;
+ 	unsigned char* bb_snum = NULL;
+@@ -2377,6 +2383,30 @@
+ 		goto leave;
+ 	}
+ 
++	/* Archive what the upstream BasebandData handler actually personalized. */
++	const char* saved = getenv("PROJECT5C_BB_SAVE");
++	if (saved && saved[0]) {
++		if (write_file(saved, buffer, sz) < 0) {
++			logger(LL_ERROR, "Could not save personalized baseband\n");
++			goto leave;
++		}
++		char* path = malloc(strlen(saved) + 16);
++		if (!path) goto leave;
++		char* xml = NULL;
++		uint32_t length = 0;
++		plist_t ticket = client->restore->bbtss ? client->restore->bbtss : response;
++		plist_to_xml(ticket, &xml, &length);
++		sprintf(path, "%s.tss.plist", saved);
++		int written = xml ? write_file(path, xml, length) : -1;
++		free(xml);
++		xml = NULL;
++		length = 0;
++		plist_to_xml(arguments, &xml, &length);
++		sprintf(path, "%s.query.plist", saved);
++		if (!xml || write_file(path, xml, length) < 0) written = -1;
++		free(xml); free(path);
++		if (written < 0) goto leave;
++	}
+ 	// send file
+ 	dict = plist_new_dict();
+ 	plist_dict_set_item(dict, "BasebandData", plist_new_data(buffer, sz));
+@@ -5573,6 +5603,14 @@
+ 	}
+ 	plist_dict_set_item(opts, "SystemPartitionPadding", spp);
+ 
++	/* Dedicated 5c iOS 6 path: preserve NOR and never transfer baseband. */
++	if ((client->flags & FLAG_CUSTOM) && client->restore->protocol_version == 12 &&
++	    client->device && (!strcmp(client->device->hardware_model, "n49ap") || !strcmp(client->device->hardware_model, "n48ap"))) {
++		plist_dict_set_item(opts, "FlashNOR", plist_new_bool(0));
++		plist_dict_set_item(opts, "UpdateBaseband", plist_new_bool(0));
++		plist_dict_set_item(opts, "FormatForLwVM", plist_new_bool(1));
++		plist_dict_remove_item(opts, "SystemImageFormat");
++	}
+ 	// start the restore process
+ 	restore_error = restored_start_restore(restore, opts, client->restore->protocol_version);
+ 	if (restore_error != RESTORE_E_SUCCESS) {
