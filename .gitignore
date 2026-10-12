@@ -4,6 +4,8 @@ runtime/
 tools/bin/**/build/
 tools/bin/**/sources/
 tools/bin/**/upstream-tools.json
+tools/bin/**/p5-native
+tools/bin/**/p5-native.tmp.*
 # These custom backends are generated locally until native builds are available.
 tools/bin/macos/dmg
 tools/bin/macos/idevicerestore
@@ -16,3 +18,4 @@ tools/bin/linux/arm64/custom-tools.json
 /VALIDATION.md
 /restore_*.log
 /tools/tests/
+/tests/

@@ -11,17 +11,15 @@ case "$(uname -s)" in
     Darwin)
         export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
         if ! command -v brew >/dev/null 2>&1; then
-            if [ "$MODE" = runtime ] && command -v python3 >/dev/null 2>&1; then exit 0; fi
             printf 'Install Homebrew from https://brew.sh, then run the tool again.\n' >&2
             exit 2
         fi
         manager=brew
-        packages=(python)
+        packages=(jq libarchive libplist libzip openssl@3 curl libxml2 zlib pkgconf)
+        if ! xcrun --find clang >/dev/null 2>&1; then
+            printf 'Install Apple Command Line Tools with: xcode-select --install\n' >&2; exit 2
+        fi
         if [ "$MODE" = build ]; then
-            if ! xcrun --find clang >/dev/null 2>&1; then
-                printf 'Install Apple Command Line Tools with: xcode-select --install\n' >&2
-                exit 2
-            fi
             packages+=(git cmake autoconf automake libtool pkgconf openssl@3 zlib libimobiledevice libirecovery libimobiledevice-glue libtatsu libusbmuxd libplist libzip curl)
         fi ;;
     Linux)
@@ -33,25 +31,25 @@ case "$(uname -s)" in
         case " $distro $family " in
             *' debian '*|*' ubuntu '*)
                 manager=apt
-                packages=(python3 libusb-1.0-0 openssl zlib1g curl libbz2-1.0 liblzma5 libzstd1 usbmuxd)
+                packages=(jq libarchive-tools unzip zip libusb-1.0-0 openssl zlib1g curl libbz2-1.0 liblzma5 libzstd1 usbmuxd build-essential pkg-config libplist-dev libzip-dev libssl-dev libcurl4-openssl-dev zlib1g-dev libxml2-dev libarchive-dev libbz2-dev)
                 if [ "$MODE" = build ]; then
                     packages+=(git cmake build-essential autoconf automake libtool pkg-config libssl-dev zlib1g-dev libimobiledevice-dev libirecovery-dev libimobiledevice-glue-dev libtatsu-dev libusbmuxd-dev libplist-dev libzip-dev libcurl4-openssl-dev)
                 fi ;;
             *' arch '*|*' manjaro '*)
                 manager=pacman
-                packages=(python libusb openssl zlib curl libzip bzip2 xz zstd usbmuxd)
+                packages=(jq libarchive unzip zip libusb openssl zlib curl libzip bzip2 xz zstd usbmuxd gcc make pkgconf libplist libxml2)
                 if [ "$MODE" = build ]; then
                     packages+=(git cmake gcc make autoconf automake libtool pkgconf libimobiledevice libirecovery libimobiledevice-glue libtatsu libusbmuxd libplist)
                 fi ;;
             *' fedora '*|*' rhel '*|*' centos '*)
                 manager=dnf
-                packages=(python3 libusb1 openssl-libs zlib libcurl libzip bzip2-libs xz-libs libzstd usbmuxd)
+                packages=(jq bsdtar unzip zip libusb1 openssl-libs zlib libcurl libzip bzip2-libs xz-libs libzstd usbmuxd gcc make pkgconf-pkg-config libplist-devel libzip-devel openssl-devel libcurl-devel zlib-devel libxml2-devel libarchive-devel bzip2-devel)
                 if [ "$MODE" = build ]; then
                     packages+=(git cmake gcc make autoconf automake libtool pkgconf-pkg-config openssl-devel zlib-devel libimobiledevice-devel libirecovery-devel libimobiledevice-glue-devel libtatsu-devel libusbmuxd-devel libplist-devel libzip-devel libcurl-devel)
                 fi ;;
             *' opensuse '*|*' opensuse-tumbleweed '*|*' opensuse-leap '*|*' suse '*)
                 manager=zypper
-                packages=(python3 libusb-1_0-0 libopenssl3 libz1 libcurl4 libzip5 libbz2-1 liblzma5 libzstd1 usbmuxd)
+                packages=(jq bsdtar unzip zip libusb-1_0-0 libopenssl3 libz1 libcurl4 libzip5 libbz2-1 liblzma5 libzstd1 usbmuxd gcc make pkg-config libplist-devel libzip-devel libopenssl-devel libcurl-devel zlib-devel libxml2-devel libarchive-devel libbz2-devel)
                 if [ "$MODE" = build ]; then
                     packages+=(git cmake gcc make autoconf automake libtool pkg-config libopenssl-devel zlib-devel libimobiledevice-devel libirecovery-devel libimobiledevice-glue-devel libtatsu-devel libusbmuxd-devel libplist-devel libzip-devel libcurl-devel)
                 fi ;;
@@ -73,12 +71,12 @@ installed() {
     esac
 }
 missing=()
-for package in "${packages[@]}"; do
+for package in ${packages[@]+"${packages[@]}"}; do
     installed "$package" || missing+=("$package")
 done
-[ ${#missing[@]} -gt 0 ] || exit 0
+[ -n "${missing[0]+yes}" ] || exit 0
 printf 'Missing %s dependencies (%s):' "$MODE" "$manager" >&2
-printf ' %s' "${missing[@]}" >&2
+printf ' %s' ${missing[@]+"${missing[@]}"} >&2
 printf '\n' >&2
 if [ "${TOOL_DEPS:-install}" = check ]; then exit 2; fi
 privilege=()
@@ -91,10 +89,10 @@ if [ "$manager" != brew ] && [ "$(id -u)" != 0 ]; then
 fi
 case "$manager" in
     apt)
-        "${privilege[@]}" apt-get update
-        "${privilege[@]}" apt-get install -y "${missing[@]}" ;;
-    pacman) "${privilege[@]}" pacman -S --needed --noconfirm "${missing[@]}" ;;
-    dnf) "${privilege[@]}" dnf install -y "${missing[@]}" ;;
-    zypper) "${privilege[@]}" zypper --non-interactive install "${missing[@]}" ;;
-    brew) brew install "${missing[@]}" ;;
+        ${privilege[@]+"${privilege[@]}"} apt-get update
+        ${privilege[@]+"${privilege[@]}"} apt-get install -y ${missing[@]+"${missing[@]}"} ;;
+    pacman) ${privilege[@]+"${privilege[@]}"} pacman -S --needed --noconfirm ${missing[@]+"${missing[@]}"} ;;
+    dnf) ${privilege[@]+"${privilege[@]}"} dnf install -y ${missing[@]+"${missing[@]}"} ;;
+    zypper) ${privilege[@]+"${privilege[@]}"} zypper --non-interactive install ${missing[@]+"${missing[@]}"} ;;
+    brew) brew install ${missing[@]+"${missing[@]}"} ;;
 esac

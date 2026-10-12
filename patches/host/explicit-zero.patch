@@ -1,0 +1,11 @@
+--- a/dmg/io.c
++++ b/dmg/io.c
+@@ -7,7 +7,7 @@
+ #include <inttypes.h>
+ 
+ #define SECTORS_AT_A_TIME 0x200
+-#define USE_IGNORE_BLOCKS 1 // allow creation of BLOCK_IGNORE
++#define USE_IGNORE_BLOCKS 0 // allow creation of BLOCK_IGNORE
+ #define RELAX_TOWARDS_END 1 // relax threshold towards the end
+ #define USE_BIG_ZERO_RUNS 0 // compress zero-blocks in one go if they are below threshold
+ 

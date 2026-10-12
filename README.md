@@ -21,7 +21,7 @@ Hacktivation and jailbreak (Cydia / Substrate) are enabled by default. You can t
 | Speaker | Playback tested |
 | Microphone | Captured nonzero audio and responses to test tones; speech and individual microphones still need testing |
 | Earpiece | Playback routing tested; audible output still needs confirmation |
-| Baseband / SIM | Not yet fully working in testing. Not enabled by default; the status bar shows “Searching…” |
+| Baseband / SIM | Not yet fully working in testing. Runtime patches and resource downloads are disabled by default; baseband flashing is disabled |
 | GPS | Not enabled by default. Optional patch can track satellites and output NMEA; no valid position fix yet |
 | Cameras, flash and sensors | Compatibility patches included; individual features still need testing |
 
@@ -31,10 +31,11 @@ Other hardware features and potential bugs have not been fully tested. Feedback 
 
 ## Requirements
 
-- Linux x86_64 / arm64 or macOS Intel / Apple Silicon (macOS untested).
-- Bash 3.2+, Python 3.10+ (3.12+ to build host tools). Linux x86_64 bundled tools need glibc 2.38+.
+- Linux x86_64 / arm64 or macOS Intel / Apple Silicon (macOS untested). Bundled Linux x86_64 host tools require glibc 2.38+.
+- Command-line tools: Bash 3.2+, jq, curl, OpenSSL, bsdtar, unzip and zip.
+- Native build dependencies: a C compiler, pkg-config, libplist 2.3+, libzip, libcurl, OpenSSL, zlib, bzip2, libxml2 and libarchive development libraries. The native helper is compiled automatically on first use.
 - USB data cable, internet access and several GB of free space.
-- macOS: Homebrew and Command Line Tools. Other missing dependencies are installed automatically.
+- macOS also requires Homebrew and Command Line Tools. The tool installs other missing dependencies automatically on supported systems.
 
 ## Usage
 

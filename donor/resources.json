@@ -1,0 +1,78 @@
+{
+  "iPhone5,3": {
+    "board": "N48AP",
+    "version": "7.0.1",
+    "build": "11A470a",
+    "resources": [
+      {
+        "name": "iBSS.n48.dfu",
+        "path": "iPhone5,3/iBSS.n48.dfu"
+      },
+      {
+        "name": "iBEC.n48.dfu",
+        "path": "iPhone5,3/iBEC.n48.dfu"
+      },
+      {
+        "name": "DeviceTree.n48.img3",
+        "path": "iPhone5,3/DeviceTree.n48.img3"
+      },
+      {
+        "name": "N48.mtprops",
+        "path": "common/touch.mtprops"
+      },
+      {
+        "name": "n49-bluetool",
+        "path": "common/BlueTool"
+      },
+      {
+        "name": "n49-isp.bin",
+        "path": "common/isp.bin"
+      },
+      {
+        "name": "n49-setfile.dat",
+        "path": "common/setfile.dat"
+      }
+    ],
+    "origin": "https://secure-appldnld.apple.com/iOS7/031-0289.20130914.DoOPv/iPhone5,3_7.0.1_11A470a_Restore.ipsw"
+  },
+  "iPhone5,4": {
+    "board": "N49AP",
+    "version": "7.0.1",
+    "build": "11A470a",
+    "resources": [
+      {
+        "name": "n49-bluetool",
+        "path": "common/BlueTool"
+      },
+      {
+        "name": "n49-mtprops",
+        "path": "common/touch.mtprops"
+      },
+      {
+        "name": "n49-isp.bin",
+        "path": "common/isp.bin"
+      },
+      {
+        "name": "n49-setfile.dat",
+        "path": "common/setfile.dat"
+      },
+      {
+        "name": "n49-ibss.bin",
+        "path": "iPhone5,4/n49-ibss.bin"
+      },
+      {
+        "name": "n49-ibec.bin",
+        "path": "iPhone5,4/n49-ibec.bin"
+      },
+      {
+        "name": "iBSS.n49.dfu",
+        "path": "iPhone5,4/iBSS.n49.dfu"
+      },
+      {
+        "name": "iBEC.n49.dfu",
+        "path": "iPhone5,4/iBEC.n49.dfu"
+      }
+    ],
+    "origin": "Original iPhone5,4_7.0.1_11A470a_Restore.ipsw boot and rootfs components; extracted during packaging"
+  }
+}

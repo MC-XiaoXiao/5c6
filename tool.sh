@@ -2,20 +2,19 @@
 # Device-driven restore and tethered boot. Compatible with macOS Bash 3.2.
 set -euo pipefail
 ROOT=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-PYTHON=${PYTHON:-python3}
 LIB="$ROOT/tools/lib"
-export PYTHONDONTWRITEBYTECODE=1
-export PYTHONUNBUFFERED=1
 VERSION=6.1.3
 ACTIVATION=hacktivate
 JAILBREAK=yes
 PROFILE=native6-wifi-candidate
-EXTRAS=baseband
+# EXTRAS=baseband  # Disabled by default until modem resources are needed.
+EXTRAS=
 WIFI_FIRMWARE_DIR=
 BASEBAND_FIRMWARE=
 BASEBAND_SOURCE=
 BASEBAND_QUERY=
-BASEBAND_DISABLED=no
+# BASEBAND_DISABLED=no
+BASEBAND_DISABLED=auto
 WORK="$ROOT/runtime"
 WORK_EXPLICIT=no
 BOOT_WORK=
@@ -46,10 +45,11 @@ Usage: ./tool.sh [menu|prepare|flash|boot] [options]
   --activation hacktivate|none Default: hacktivate
   --jailbreak yes|no          Default: yes
   --profile NAME              native6-wifi-candidate (default, both models) or native6-validated
-  --extras gps,baseband        Additional runtime patches; baseband is included by default
+  --extras gps,baseband        Additional runtime patches; none enabled by default
   --wifi-firmware-dir PATH     Model-matched 43342a0 donor directory; packaged files used by default
   --baseband-firmware PATH     Optional personalized Mav7 ZIP override
   --baseband-query PATH        Optional device-bound query plist for offline parameter input
+  --baseband                   Enable CommCenter patches and prepare modem firmware resources
   --no-baseband                Disable CommCenter patches and modem firmware resources
   --work PATH                 Original inputs and generated bundle/session
   --tools-dir PATH            Native host tools, including device detection
@@ -75,6 +75,7 @@ while [ "$#" -gt 0 ]; do
         --download) DOWNLOAD=yes; shift; continue ;;
         --execute) EXECUTE=yes; shift; continue ;;
         --erase) ERASE=yes; shift; continue ;;
+        --baseband) BASEBAND_DISABLED=no; shift; continue ;;
         --no-baseband) BASEBAND_DISABLED=yes; shift; continue ;;
         --help|-h) usage; exit 0 ;;
     esac
@@ -99,6 +100,11 @@ validate() {
     case "$ACTIVATION" in hacktivate|none) ;; *) fail 'Activation must be hacktivate or none'; return 2 ;; esac
     case "$JAILBREAK" in yes|no) ;; *) fail 'Jailbreak must be yes or no'; return 2 ;; esac
     case "$PROFILE" in native6-validated|native6-wifi-candidate) ;; *) fail 'Unknown patch profile'; return 2 ;; esac
+    if [ "$BASEBAND_DISABLED" = auto ]; then
+        BASEBAND_DISABLED=yes
+        case ",$EXTRAS," in *,baseband,*) BASEBAND_DISABLED=no ;; esac
+        [ -z "$BASEBAND_FIRMWARE$BASEBAND_QUERY" ] || BASEBAND_DISABLED=no
+    fi
     if [ "$BASEBAND_DISABLED" = yes ]; then
         if [ -n "$BASEBAND_FIRMWARE" ] || [ -n "$BASEBAND_QUERY" ]; then
             fail '--no-baseband conflicts with baseband firmware/query inputs'; return 2
@@ -107,7 +113,7 @@ validate() {
     else
         case ",$EXTRAS," in *,baseband,*) ;; *) EXTRAS=${EXTRAS:+$EXTRAS,}baseband ;; esac
     fi
-    EXTRAS=$("$PYTHON" -B "$LIB/selection.py" --normalize-extras "$EXTRAS") || return $?
+    EXTRAS=$(bash "$LIB/selection.sh" --normalize-extras "$EXTRAS") || return $?
     if [ "$PROFILE" = native6-validated ] && [ -n "$WIFI_FIRMWARE_DIR" ]; then
         fail '--wifi-firmware-dir requires --profile native6-wifi-candidate'; return 2
     fi
@@ -115,7 +121,7 @@ validate() {
 detect_device() {
     local identity next_model next_ecid next_mode
     progress "Detect connected device"
-    identity=$("$PYTHON" -B "$LIB/device.py" --tools-dir "$HOST_TOOLS") || return $?
+    identity=$(bash "$LIB/device.sh" --tools-dir "$HOST_TOOLS") || return $?
     IFS=$'\t' read -r next_model next_ecid next_mode <<< "$identity"
     if [ -n "${ECID:-}" ] && [ "$ECID" != "$next_ecid" ]; then
         fail "The connected device changed. Restart for the new device."; return 2
@@ -128,7 +134,7 @@ check_version() {
     if [ -n "$WIFI_FIRMWARE_DIR" ]; then args+=(--wifi-firmware-dir "$WIFI_FIRMWARE_DIR"); fi
     if [ -n "$BASEBAND_FIRMWARE" ]; then args+=(--baseband-firmware "$BASEBAND_FIRMWARE"); fi
     if [ -n "$BASEBAND_SOURCE" ]; then args+=(--baseband-source "$BASEBAND_SOURCE"); fi
-    "$PYTHON" -B "$LIB/selection.py" "${args[@]}" "$@" >/dev/null
+    bash "$LIB/selection.sh" ${args[@]+"${args[@]}"} "$@" >/dev/null
 }
 ensure_tools() {
     progress "Check restore host tools: $HOST_TOOLS"
@@ -141,16 +147,17 @@ ensure_tools() {
         if [ ! -x "$HOST_TOOLS/$name" ]; then missing=yes; fi
     done
     if [ "$missing" = yes ]; then
-        "$PYTHON" -B "$LIB/tools.py" setup --out "$HOST_TOOLS" || return $?
+        bash "$LIB/tools.sh" setup --out "$HOST_TOOLS" || return $?
     fi
-    "$PYTHON" -B "$LIB/tools.py" check --out "$HOST_TOOLS" --scope restore >/dev/null || return $?
+    bash "$LIB/tools.sh" check --out "$HOST_TOOLS" --scope restore >/dev/null || return $?
 }
 build_bundle() {
     check_version --inputs "$WORK/inputs" --identity-only || return $?
     local build_args=(--model "$MODEL" --profile "$PROFILE" --extras "$EXTRAS" --inputs "$WORK/inputs" --tools-dir "$HOST_TOOLS" --out "$WORK/bundle")
     if [ -n "$DONOR_INPUTS" ]; then build_args+=(--donor-inputs "$DONOR_INPUTS"); fi
-    if [ -n "$KEYS" ]; then build_args+=(--keys "$KEYS"); fi
-    "$PYTHON" -B "$LIB/patchctl.py" build "${build_args[@]}" || return $?
+    if [ -n "$KEYS" ]; then build_args+=(--keys "$KEYS");
+    elif [ -f "$WORK/firmware/keys.json" ]; then build_args+=(--keys "$WORK/firmware/keys.json"); fi
+    bash "$LIB/patchctl.sh" build ${build_args[@]+"${build_args[@]}"} || return $?
 }
 resolve_work() {
     if [ "$WORK_EXPLICIT" = no ]; then
@@ -178,15 +185,15 @@ prepare_firmware() {
     fi
     if [ "$BASEBAND_DISABLED" = no ] && [ -z "$BASEBAND_FIRMWARE" ] && [ -f "$WORK/baseband/Mav7personalized.zip" ]; then
         BASEBAND_FIRMWARE="$WORK/baseband/Mav7personalized.zip"
-        "$PYTHON" -B -c 'import sys; sys.path.insert(0,sys.argv[1]); from baseband import receipt; receipt(sys.argv[2],sys.argv[3],int(sys.argv[4],0))' "$LIB" "$BASEBAND_FIRMWARE" "$MODEL" "$ECID" || return $?
+        (source "$LIB/baseband.sh"; p5_baseband_receipt "$BASEBAND_FIRMWARE" "$MODEL" "$ECID" >/dev/null) || return $?
     fi
     if [ "$BASEBAND_DISABLED" = no ] && [ -d "$WORK/baseband-source" ]; then BASEBAND_SOURCE="$WORK/baseband-source"; fi
     if [ "$BASEBAND_DISABLED" = no ] && [ -f "$WORK/session/restore.json" ]; then
-        "$PYTHON" -B -c 'import json,sys; r=json.load(open(sys.argv[1])); r.get("restore_options",{}).get("UpdateBaseband") is False or sys.exit("This workspace enables baseband transfer. Rebuild it before restoring.")' "$WORK/session/restore.json" || return $?
+        jq -e ' .restore_options.UpdateBaseband==false ' "$WORK/session/restore.json" >/dev/null || return $?
     fi
     if [ ! -f "$WORK/session/restore.json" ] && [ ! -f "$WORK/inputs/SystemVersion.plist" ]; then
         if [ "$DOWNLOAD" = yes ]; then
-            SOURCE_IPSW=$("$PYTHON" -B "$LIB/download.py" --version "$VERSION" --out "$ROOT/runtime/downloads") || return $?
+            SOURCE_IPSW=$(bash "$LIB/download.sh" --version "$VERSION" --out "$ROOT/runtime/downloads") || return $?
             DOWNLOAD=no
         fi
     fi
@@ -195,7 +202,7 @@ prepare_firmware() {
             ensure_tools || return $?
             local extract_args=(--source-ipsw "$SOURCE_IPSW" --tools-dir "$HOST_TOOLS" --work "$WORK" --model "$MODEL" --version "$VERSION")
             if [ -n "$KEYS" ]; then extract_args+=(--keys "$KEYS"); fi
-            "$PYTHON" -B "$LIB/inputs.py" "${extract_args[@]}" || return $?
+            bash "$LIB/inputs.sh" ${extract_args[@]+"${extract_args[@]}"} || return $?
         fi
         if [ -f "$WORK/firmware/source-rootfs.hfs" ]; then
             ROOTFS="$WORK/firmware/source-rootfs.hfs"
@@ -217,26 +224,26 @@ prepare_firmware() {
             progress "Prepare model-matched baseband resources (modem transfer disabled)"
             local bb_args=(--model "$MODEL" --ecid "$ECID" --mode "$MODE" --bundle "$WORK/bundle" --tools-dir "$HOST_TOOLS" --out "$WORK/baseband" --cache "$ROOT/runtime/downloads/baseband")
             if [ -n "$BASEBAND_QUERY" ] && [ -z "$BASEBAND_FIRMWARE" ]; then
-                BASEBAND_FIRMWARE=$("$PYTHON" -B "$LIB/baseband.py" "${bb_args[@]}" --query "$BASEBAND_QUERY") || return $?
+                BASEBAND_FIRMWARE=$(bash "$LIB/baseband.sh" ${bb_args[@]+"${bb_args[@]}"} --query "$BASEBAND_QUERY") || return $?
             fi
             bb_args=(--model "$MODEL" --ecid "$ECID" --mode "$MODE" --bundle "$WORK/bundle" --tools-dir "$HOST_TOOLS" --out "$WORK/baseband-source" --cache "$ROOT/runtime/downloads/baseband" --native-source)
-            BASEBAND_SOURCE=$("$PYTHON" -B "$LIB/baseband.py" "${bb_args[@]}") || return $?
+            BASEBAND_SOURCE=$(bash "$LIB/baseband.sh" ${bb_args[@]+"${bb_args[@]}"}) || return $?
         fi
         check_version --policy-only || return $?
         check_version --bundle "$WORK/bundle" || return $?
-        "$PYTHON" -B "$LIB/patchctl.py" verify --bundle "$WORK/bundle" >/dev/null || return $?
+        bash "$LIB/patchctl.sh" verify --bundle "$WORK/bundle" >/dev/null || return $?
         local restore_args=(prepare --retry-incomplete --activation "$ACTIVATION" --jailbreak "$JAILBREAK" --bundle "$WORK/bundle" --rootfs-hfs "$ROOTFS" --ramdisk-hfs "$RAMDISK" --ramdisk-template "$TEMPLATE" --ibec-raw "$IBEC" --out "$WORK/session" --tools-dir "$HOST_TOOLS" --dmg-tool "$HOST_TOOLS/dmg")
         if [ -n "$WIFI_FIRMWARE_DIR" ]; then restore_args+=(--wifi-firmware-dir "$WIFI_FIRMWARE_DIR"); fi
         if [ -n "$BASEBAND_FIRMWARE" ]; then restore_args+=(--baseband-firmware "$BASEBAND_FIRMWARE" --baseband-ecid "$ECID"); fi
         if [ -n "$BASEBAND_SOURCE" ]; then restore_args+=(--baseband-source "$BASEBAND_SOURCE" --baseband-ecid "$ECID"); fi
-        "$PYTHON" -B "$LIB/restore6.py" "${restore_args[@]}" || return $?
+        bash "$LIB/restore6.sh" ${restore_args[@]+"${restore_args[@]}"} || return $?
         check_version --session "$WORK/session" --record || return $?
     fi
     progress "Verify session, selected patches and device boot record"
     check_version --session "$WORK/session" || return $?
     check_version --bundle "$WORK/bundle" || return $?
-    "$PYTHON" -B "$LIB/restore6.py" verify --session "$WORK/session" >/dev/null || return $?
-    "$PYTHON" -B "$LIB/bootstate.py" check --state "$ROOT/runtime/devices" --work "$WORK" --model "$MODEL" --ecid "$ECID" >/dev/null || return $?
+    bash "$LIB/restore6.sh" verify --session "$WORK/session" >/dev/null || return $?
+    bash "$LIB/bootstate.sh" check --state "$ROOT/runtime/devices" --work "$WORK" --model "$MODEL" --ecid "$ECID" >/dev/null || return $?
     printf 'Firmware identity checked: %s / %s\n' "$MODEL" "$VERSION"
     printf '\nFirmware ready: %s/session\nModel: %s | iOS: %s | Activation: %s | Jailbreak: %s\n' "$WORK" "$MODEL" "$VERSION" "$ACTIVATION" "$JAILBREAK"
     printf 'Patch profile: %s | Runtime extras: %s\n' "$PROFILE" "${EXTRAS:-none}"
@@ -249,9 +256,9 @@ flash_device() {
     local args=(--session "$WORK/session" --ecid "$ECID" --tools-dir "$HOST_TOOLS" --idevicerestore "$HOST_TOOLS/idevicerestore")
     if [ "$EXECUTE" = yes ]; then args+=(--execute --erase); fi
     # The install backend boots the restore ramdisk, waits for restored, and flashes.
-    "$PYTHON" -B "$LIB/restore6.py" install "${args[@]}" || return $?
+    bash "$LIB/restore6.sh" install ${args[@]+"${args[@]}"} || return $?
     if [ "$EXECUTE" = yes ]; then
-        "$PYTHON" -B "$LIB/bootstate.py" record --state "$ROOT/runtime/devices" --work "$WORK" --model "$MODEL" --ecid "$ECID" || return $?
+        bash "$LIB/bootstate.sh" record --state "$ROOT/runtime/devices" --work "$WORK" --model "$MODEL" --ecid "$ECID" || return $?
         MODE='Awaiting manual DFU'
         printf '\nFlash complete. Keep the USB cable connected and manually enter physical DFU.\n'
         printf 'Then select Tethered boot in the menu, or run ./tool.sh boot --execute.\n'
@@ -264,17 +271,17 @@ tethered_boot() {
     local boot_work
     local state_args=(resolve --state "$ROOT/runtime/devices" --model "$MODEL" --ecid "$ECID")
     if [ -n "$BOOT_WORK" ]; then state_args+=(--work "$BOOT_WORK"); fi
-    boot_work=$("$PYTHON" -B "$LIB/bootstate.py" "${state_args[@]}") || return $?
+    boot_work=$(bash "$LIB/bootstate.sh" ${state_args[@]+"${state_args[@]}"}) || return $?
     WORK=$boot_work
     printf 'Tethered boot workspace: %s\n' "$WORK"
-    "$PYTHON" -B -c 'import sys; sys.path.insert(0, sys.argv[1]); from hosttools import require_boot_tools; require_boot_tools(sys.argv[2])' "$LIB" "$HOST_TOOLS" 2>/dev/null || {
-        "$PYTHON" -B "$LIB/tools.py" fetch --out "$HOST_TOOLS" || return $?
+    (source "$LIB/hosttools.sh"; p5_require_boot "$HOST_TOOLS") 2>/dev/null || {
+        bash "$LIB/tools.sh" fetch --out "$HOST_TOOLS" || return $?
     }
-    "$PYTHON" -B "$LIB/tools.py" check --out "$HOST_TOOLS" --scope boot >/dev/null || return $?
+    bash "$LIB/tools.sh" check --out "$HOST_TOOLS" --scope boot >/dev/null || return $?
     local args=(--bundle "$WORK/bundle" --ecid "$ECID" --tools-dir "$HOST_TOOLS")
     if [ "$EXECUTE" = yes ]; then args+=(--execute); fi
     # Boot the installed OS from its matching patch bundle, without a restore ramdisk.
-    "$PYTHON" -B "$LIB/patchctl.py" ramboot "${args[@]}"
+    bash "$LIB/patchctl.sh" ramboot ${args[@]+"${args[@]}"}
 }
 ask() { printf '%s [%s]: ' "$1" "$2"; IFS= read -r REPLY || return 1; REPLY=${REPLY:-$2}; }
 ready_for_usb() {
@@ -286,7 +293,7 @@ ready_for_usb() {
     [ "$MODE" = DFU ] || { fail "Physical DFU was not detected"; return 2; }
 }
 select_option() {
-    CHOICE=$("$PYTHON" -B "$LIB/menu.py" "$@") || return $?
+    CHOICE=$(bash "$LIB/menu.sh" "$@") || return $?
 }
 firmware_choices() {
     local version_default=0 activation_default=0 jailbreak_default=0 source_default=0 picker_status=0
@@ -309,7 +316,7 @@ firmware_choices() {
         case "$CHOICE" in
             0) return 0 ;;
             1) picker_status=0
-               REPLY=$("$PYTHON" -B "$LIB/filepicker.py" --directory -- "$WORK") || picker_status=$?
+               REPLY=$(bash "$LIB/filepicker.sh" --directory -- "$WORK") || picker_status=$?
                case "$picker_status" in
                    0) ;;
                    3) ask 'Workspace path (empty cancels; spaces are supported)' '' || continue
@@ -319,7 +326,7 @@ firmware_choices() {
                           \'*\') REPLY=${REPLY#\'}; REPLY=${REPLY%\'} ;;
                       esac
                       [ -n "$REPLY" ] || continue
-                      REPLY=$("$PYTHON" -B "$LIB/filepicker.py" --directory --path="$REPLY") || continue ;;
+                      REPLY=$(bash "$LIB/filepicker.sh" --directory --path="$REPLY") || continue ;;
                    130) continue ;;
                    *) continue ;;
                esac
@@ -333,7 +340,7 @@ firmware_choices() {
         select_option --default "$source_default" 'Original iPhone 5 source firmware' 'Select a local IPSW' 'Download from Apple' 'Back' || return 1
         case "$CHOICE" in
             0) picker_status=0
-               REPLY=$("$PYTHON" -B "$LIB/filepicker.py" -- "$SOURCE_IPSW") || picker_status=$?
+               REPLY=$(bash "$LIB/filepicker.sh" -- "$SOURCE_IPSW") || picker_status=$?
                case "$picker_status" in
                    0) ;;
                    3) ask 'Local IPSW path (spaces are supported)' "$SOURCE_IPSW" || continue
@@ -420,14 +427,15 @@ trap finish_log EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 progress "Start $COMMAND. Run log: $RUN_LOG"
-validate
 progress "Check host dependencies"
 if [ "$(uname -s)" = Darwin ]; then export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; fi
 bash "$ROOT/tools/dependencies.sh" runtime "$HOST_TOOLS" "$COMMAND"
-"$PYTHON" -B -c 'import sys; assert sys.version_info >= (3, 10), "Python 3.10+ required"'
-if [ ! -x "$HOST_TOOLS/irecovery" ] && ! command -v irecovery >/dev/null 2>&1; then
-    "$PYTHON" -B "$LIB/tools.py" detection --out "$HOST_TOOLS"
+for required in jq openssl curl bsdtar unzip zip; do command -v "$required" >/dev/null || { fail "Missing dependency: $required"; exit 2; }; done
+(source "$LIB/common.sh"; p5_native version >/dev/null)
+validate
+if [ ! -x "$HOST_TOOLS/irecovery" ]; then
+    bash "$LIB/tools.sh" detection --out "$HOST_TOOLS"
 fi
-"$PYTHON" -B "$LIB/tools.py" check --out "$HOST_TOOLS" --scope detection >/dev/null
+bash "$LIB/tools.sh" check --out "$HOST_TOOLS" --scope detection >/dev/null
 detect_device
 case "$COMMAND" in menu) menu ;; prepare) prepare_firmware ;; flash) flash_device ;; boot) tethered_boot ;; esac
