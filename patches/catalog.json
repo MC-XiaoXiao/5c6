@@ -1089,6 +1089,113 @@
         "n49/microphone-runtime/src/native6_audio_model_alias.c",
         "common/microphone-runtime/src/native6_audio_route_trace.c"
       ]
+    },
+    "jailbreak/kernel": {
+      "kind": "bsdiff",
+      "variants": [
+        {
+          "patch": "jailbreak/kernel/common-kernel-validated-n42-6.1.3.patch",
+          "source": {
+            "size": 14376960,
+            "sha256": "4c9b23c5d8266d657cb87f223bf89b4ae4280c38968409fdbb1eb0e696310618"
+          },
+          "output": {
+            "size": 14376960,
+            "sha256": "547aa1fff34856a529bf70e16bd23fd099e07d9033ae2278e2641051162c5a24"
+          },
+          "delta": {
+            "size": 564,
+            "sha256": "c2122e325576402101d2424de8fabf2852f91f871b47d3120d8601a6b8da07c9"
+          },
+          "origin": "n42/6.1.3",
+          "ported_recipe": "common/kernel-validated"
+        },
+        {
+          "patch": "jailbreak/kernel/common-kernel-validated-n41-6.1.4.patch",
+          "source": {
+            "size": 14376960,
+            "sha256": "7da0e64c3c8841cdc15ff9643b268bce0e2b6d599f3cadfd1e16842e58775302"
+          },
+          "output": {
+            "size": 14376960,
+            "sha256": "ab19301422ba07117ebc23c9730d3bee7488f951621181cf07aeb2c818f9c352"
+          },
+          "delta": {
+            "size": 564,
+            "sha256": "c2122e325576402101d2424de8fabf2852f91f871b47d3120d8601a6b8da07c9"
+          },
+          "origin": "n41/6.1.4",
+          "ported_recipe": "common/kernel-validated"
+        },
+        {
+          "patch": "jailbreak/kernel/common-kernel-wifi-candidate-n42-6.1.3.patch",
+          "source": {
+            "size": 14381056,
+            "sha256": "98845ea86fc6582fb61a1456b2c3dd3d9c73fb3598fef9ff3db7d3b40d6d6291"
+          },
+          "output": {
+            "size": 14381056,
+            "sha256": "55c80dcb9bb895bc56a079c59a1184f7d3731ace31bfebd04e3ddba0c84ac2cf"
+          },
+          "delta": {
+            "size": 565,
+            "sha256": "ca6f7ee03966f2073b2208495e6c829dbf96a238c02e8cccdf830754ec7d3421"
+          },
+          "origin": "n42/6.1.3",
+          "ported_recipe": "common/kernel-wifi-candidate"
+        },
+        {
+          "patch": "jailbreak/kernel/common-kernel-wifi-candidate-n41-6.1.4.patch",
+          "source": {
+            "size": 14381056,
+            "sha256": "811113f7219def2ab0baf3ee2fe4bd41cfe43b566bf486c85b7ed7e2c8dab855"
+          },
+          "output": {
+            "size": 14381056,
+            "sha256": "99f7a821df45bf323b0f465339f00794f2f20e740e5da57d64b230ad4a350adb"
+          },
+          "delta": {
+            "size": 565,
+            "sha256": "ca6f7ee03966f2073b2208495e6c829dbf96a238c02e8cccdf830754ec7d3421"
+          },
+          "origin": "n41/6.1.4",
+          "ported_recipe": "common/kernel-wifi-candidate"
+        },
+        {
+          "patch": "jailbreak/kernel/n48-kernel-wifi-candidate-n42-6.1.3.patch",
+          "source": {
+            "size": 14381056,
+            "sha256": "9d5914533b5597bec77f54e01fadee79a86a300cf5f928a30b1c40041e0cf80b"
+          },
+          "output": {
+            "size": 14381056,
+            "sha256": "6944b70f9faef666dc9eb666d6cf1918d383848b1b5fb4f60ba636be8df50cf1"
+          },
+          "delta": {
+            "size": 565,
+            "sha256": "ca6f7ee03966f2073b2208495e6c829dbf96a238c02e8cccdf830754ec7d3421"
+          },
+          "origin": "n42/6.1.3",
+          "ported_recipe": "n48/kernel-wifi-candidate"
+        },
+        {
+          "patch": "jailbreak/kernel/n48-kernel-wifi-candidate-n41-6.1.4.patch",
+          "source": {
+            "size": 14381056,
+            "sha256": "6fbe406296d9ce5a8abb1001f3fbcdcf519528bd9fc37a3924107f7dd12327d5"
+          },
+          "output": {
+            "size": 14381056,
+            "sha256": "8135f515430488fdf711d259220da39dcd206333882476a94f60ca7bc959a42d"
+          },
+          "delta": {
+            "size": 565,
+            "sha256": "ca6f7ee03966f2073b2208495e6c829dbf96a238c02e8cccdf830754ec7d3421"
+          },
+          "origin": "n41/6.1.4",
+          "ported_recipe": "n48/kernel-wifi-candidate"
+        }
+      ]
     }
   }
 }

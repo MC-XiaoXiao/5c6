@@ -18,6 +18,8 @@
     }
   ],
   "origin": "Legacy-iOS-Kit c9dfd212e6f59188c74026b20bf96f2f06e339f9 resources/jailbreak",
-  "boot": "Requires the port patched kernel and tethered iBEC; no untether payload is installed",
-  "data_seed": "Stored on System; initialized on Data after it is mounted"
+  "boot": "Offline Aquila-derived iOS 6 sandbox, CS, debugger, VM and task_for_pid patches are applied to the ported kernel before IMG3 packaging. No exploit or untether is installed; original port bootargs are retained.",
+  "data_seed": "Stored on System; initialized on Data after it is mounted",
+  "kernel_recipe": "jailbreak/kernel",
+  "kernel_revision": 1
 }

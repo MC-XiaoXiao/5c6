@@ -11,7 +11,7 @@ INPUTS=$(p5_get inputs); BUNDLE=$(p5_get bundle); SESSION=$(p5_get session); BB=
 case "$VERSION/$ACTIVATION/$JAILBREAK" in 6.1.[34]/hacktivate/yes|6.1.[34]/hacktivate/no|6.1.[34]/none/yes|6.1.[34]/none/no) ;; *) p5_fail 'Invalid firmware/activation/jailbreak selection'; exit 2 ;; esac
 [ "$MODEL" != iPhone5,3 ] || [[ ",$EXTRAS," != *,gps,* ]] || { p5_fail 'GPS runtime requires N49'; exit 2; }
 SELECTED=$(p5_select "$PROFILE" "$EXTRAS" '' "$MODEL"); BOARD=$(p5_target "$MODEL"|jq -r .HardwareModel)
-RECEIPT=$(jq -n --arg model "$MODEL" --arg version "$VERSION" --arg activation "$ACTIVATION" --arg jailbreak "$JAILBREAK" --arg profile "$PROFILE" --arg extras "$EXTRAS" '{model:$model,version:$version,activation:$activation,jailbreak:($jailbreak=="yes")}|if $profile!="native6-validated" or $extras!="" then .+{profile:$profile,extras:($extras|split(",")|map(select(length>0)))} else . end')
+RECEIPT=$(jq -n --arg model "$MODEL" --arg version "$VERSION" --arg activation "$ACTIVATION" --arg jailbreak "$JAILBREAK" --arg profile "$PROFILE" --arg extras "$EXTRAS" '{model:$model,version:$version,activation:$activation,jailbreak:($jailbreak=="yes")}|if $jailbreak=="yes" then .+{jailbreak_kernel_revision:1} else . end|if $profile!="native6-validated" or $extras!="" then .+{profile:$profile,extras:($extras|split(",")|map(select(length>0)))} else . end')
 if [ "$(p5_get identity-only no)" = yes ]; then
     [ -n "$INPUTS" ] && [ -z "$BUNDLE$SESSION" ] || { p5_fail '--identity-only requires --inputs'; exit 2; }
 else
@@ -33,13 +33,13 @@ COUNT=0; for PATH_VALUE in "$INPUTS" "$BUNDLE" "$SESSION"; do [ -z "$PATH_VALUE"
 if [ -n "$INPUTS" ]; then METADATA=$(p5_plist "$INPUTS/SystemVersion.plist");
 elif [ -n "$BUNDLE" ]; then
     METADATA=$(jq .target "$BUNDLE/build.json")
-    jq -e --argjson selected "$SELECTED" --arg model "$MODEL" --arg board "$BOARD" '([.files[].id]|sort)==($selected|sort) and .target.ProductType==$model and .target.HardwareModel==$board' "$BUNDLE/build.json" >/dev/null || { p5_fail 'Bundle selection differs'; exit 2; }
+    jq -e --arg jailbreak "$JAILBREAK" --argjson selected "$SELECTED" --arg model "$MODEL" --arg board "$BOARD" '([.files[].id]|sort)==($selected|sort) and .target.ProductType==$model and .target.HardwareModel==$board and ((.jailbreak_kernel.enabled//false)==($jailbreak=="yes")) and ($jailbreak!="yes" or .jailbreak_kernel.revision==1)' "$BUNDLE/build.json" >/dev/null || { p5_fail 'Bundle selection or jailbreak kernel revision differs; rebuild in a new --work directory'; exit 2; }
 else
     METADATA=$(jq .source_version "$SESSION/restore.json")
     jq -e --arg board "$BOARD" --arg activation "$ACTIVATION" --arg jailbreak "$JAILBREAK" --argjson selected "$SELECTED" --argjson wanted "$RECEIPT" '
-      .target==$board and ((.activation!=null)==($activation=="hacktivate")) and ((.jailbreak!=null)==($jailbreak=="yes")) and ((.selected_artifacts|sort)==($selected|sort))
+      .target==$board and ((.activation!=null)==($activation=="hacktivate")) and ((.jailbreak!=null)==($jailbreak=="yes")) and ($jailbreak!="yes" or (.jailbreak.kernel.revision==1 and .jailbreak.kernel.enabled==true)) and ((.selected_artifacts|sort)==($selected|sort))
       and (. as $r|all($wanted|to_entries[]|select(.key|IN("wifi_firmware_sha256","baseband_firmware_sha256","baseband_ecid","baseband_source_sha256"));$r[.key]==.value))
-      and ((.wifi_firmware_files//[]|sort)==($wanted.wifi_firmware_sha256//{}|keys|sort))' "$SESSION/restore.json" >/dev/null || { p5_fail 'Restore session selection differs'; exit 2; }
+      and ((.wifi_firmware_files//[]|sort)==($wanted.wifi_firmware_sha256//{}|keys|sort))' "$SESSION/restore.json" >/dev/null || { p5_fail 'Restore session selection or jailbreak kernel revision differs; rebuild in a new --work directory'; exit 2; }
     if [ "$(p5_get record no)" != yes ]; then jq -e --argjson wanted "$RECEIPT" '.==$wanted' "$SESSION/selection.json" >/dev/null || { p5_fail 'Saved session selection differs'; exit 2; }; fi
 fi
 [ "$(printf '%s' "$METADATA"|jq -r .ProductVersion)" = "$VERSION" ] || { p5_fail 'Firmware version differs from selection'; exit 2; }

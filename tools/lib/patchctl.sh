@@ -86,6 +86,12 @@ p5_build_one() {
             name=$(printf '%s' "$spec"|jq -r '.donor_input//empty')
             if [ -n "$name" ]; then name=$(p5_build_input "$name" "$ident"); p5_tree_identity "$name" "$P5_MODEL"; fi
             evidence=$(p5_apply_fixed "$source" "$spec" "$P5_PROFILE" "$out")
+            case "$ident/$P5_JAILBREAK" in
+                kernel-validated/yes|kernel-wifi-candidate/yes)
+                    mv -- "$out" "$out.ported"
+                    value=$(p5_apply_fixed "$out.ported" "$(p5_read_spec jailbreak/kernel "$P5_MODEL")" '' "$out")
+                    evidence=$(printf '%s' "$evidence"|jq --argjson kernel "$value" '.jailbreak_kernel=($kernel+{revision:1})') ;;
+            esac
             if [ "$(printf '%s' "$spec"|jq -r '.resign//false')" = true ]; then p5_native signature "$out" >/dev/null; fi ;;
         copy)
             wanted=$(printf '%s' "$spec"|jq -r '.input_size//.size'); [ "$(p5_size "$source")" = "$wanted" ] || { p5_fail "Donor extent differs: $input"; return 2; }
@@ -108,7 +114,7 @@ p5_build_one() {
             else source="$P5_STAGE/cache/$core"; fi
             template=$(p5_relative "$P5_ROOT/patches" "$(printf '%s' "$spec"|jq -r .template_file)")
             p5_native img3-wrap "$template" "$source" "$out"
-            evidence=$(jq -n --arg core "$core" '{derived_from:$core}') ;;
+            evidence=$(jq -n --arg core "$core" --argjson kernel "$(jq '.jailbreak_kernel//null' "$P5_STAGE/$core.evidence")" '{derived_from:$core}|if $kernel!=null then .jailbreak_kernel=$kernel else . end') ;;
         feature-runtime|payload) name=$(p5_relative "$P5_ROOT/patches" "$(printf '%s' "$spec"|jq -r .payload)"); cp -- "$name" "$out" ;;
         *) p5_fail "Unsupported recipe: $kind"; return 2 ;;
     esac
@@ -116,7 +122,9 @@ p5_build_one() {
     rm -- "$P5_STAGE/$ident.busy"
 }
 p5_build() {
-    local inputs=$1 dest=$2 profile=$3 extras=$4 only=$5 model=$6 bins=$7 donor=$8 keys=$9 doctor=${10:-no} id path mode receipts target
+    local inputs=$1 dest=$2 profile=$3 extras=$4 only=$5 model=$6 bins=$7 donor=$8 keys=$9 doctor=${10:-no} jailbreak=${11:-yes} id path mode receipts target
+    case "$jailbreak" in yes|no) ;; *) p5_fail 'Invalid jailbreak policy'; return 2 ;; esac
+    P5_JAILBREAK=$jailbreak
     P5_INPUTS=$(p5_abs "$inputs"); P5_MODEL=$model; P5_PROFILE=$profile; P5_DONOR=$donor; P5_BINS=$bins; P5_KEYS=$keys
     P5_SOURCE=$(p5_source_identity "$P5_INPUTS"); P5_ACTIVE=$(p5_select "$profile" "$extras" "$only" "$model")
     p5_temp; P5_STAGE="$P5_TMP/build"; mkdir -p "$P5_STAGE/cache" "$P5_STAGE/bundle"; printf '{}\n' > "$P5_STAGE/receipts.json"
@@ -124,7 +132,7 @@ p5_build() {
     while IFS= read -r id; do p5_build_one "$id"; done < <(printf '%s' "$P5_ACTIVE"|jq -r '.[]')
     target=$(p5_target "$model" | jq 'del(.board_id)')
     if [ -f "$P5_INPUTS/SystemVersion.plist" ]; then target=$(jq -n --argjson target "$target" --argjson version "$(p5_plist "$P5_INPUTS/SystemVersion.plist")" '$target+($version|{ProductVersion,ProductBuildVersion})'); fi
-    jq -n --argjson active "$P5_ACTIVE" --argjson target "$target" --arg profile "$profile" --arg extras "$extras" --argjson source "$P5_SOURCE" --slurpfile receipts "$P5_STAGE/receipts.json" '{schema:1,matching:"binary-features",profile:$profile,extras:($extras|split(",")|map(select(length>0))),selected:$active,target:$target,files:[],input_receipts:$receipts[0],feature_evidence:{},source_firmware:$source,device_operations:false,physical_validation:false}' > "$P5_STAGE/bundle/build.json"
+    jq -n --arg jailbreak "$jailbreak" --argjson active "$P5_ACTIVE" --argjson target "$target" --arg profile "$profile" --arg extras "$extras" --argjson source "$P5_SOURCE" --slurpfile receipts "$P5_STAGE/receipts.json" '{schema:1,jailbreak_kernel:{enabled:($jailbreak=="yes"),revision:1},matching:"binary-features",profile:$profile,extras:($extras|split(",")|map(select(length>0))),selected:$active,target:$target,files:[],input_receipts:$receipts[0],feature_evidence:{},source_firmware:$source,device_operations:false,physical_validation:false}' > "$P5_STAGE/bundle/build.json"
     while IFS= read -r id; do
         local spec; spec=$(p5_spec "$id" "$model"); path=$(printf '%s' "$spec"|jq -r .destination); mode=$(printf '%s' "$spec"|jq -r .mode)
         local output; output=$(p5_relative "$P5_STAGE/bundle" "$path"); mkdir -p "$(dirname -- "$output")"; cp -- "$P5_STAGE/cache/$id" "$output"; printf -v mode '%o' "$mode"; chmod "$mode" "$output"
@@ -150,6 +158,23 @@ p5_verify_bundle() {
         path=$(p5_relative "$bundle" "$path") || return $?; p5_check_file "$path" "$size" "$sha" || return $?; count=$((count+1))
     done < <(jq -r '.files[]|[.id,.path,.sha256,.size]|@tsv' "$report")
     if [ "$boot_only" = yes ]; then [ "$count" = 4 ] || { p5_fail 'Boot bundle incomplete'; return 2; }; fi
+    if jq -e '.jailbreak_kernel.enabled==true' "$report" >/dev/null; then
+        local kernel_info kernel_id kernel_sha kernel_evidence kernel_raw
+        kernel_info=$(p5_read_spec jailbreak/kernel "$model") || return $?
+        [ "$(jq -r .jailbreak_kernel.revision "$report")" = 1 ] || { p5_fail 'Unsupported jailbreak kernel revision'; return 2; }
+        while IFS= read -r kernel_id; do
+            kernel_evidence=$(jq -ce --arg id "$kernel_id" '.feature_evidence[$id].jailbreak_kernel|select(.revision==1)' "$report") || { p5_fail 'Missing jailbreak kernel evidence'; return 2; }
+            printf '%s' "$kernel_info"|jq -e --argjson ev "$kernel_evidence" 'any(.variants[];.patch==$ev.patch and .source.sha256==$ev.source_sha256 and .output.sha256==$ev.output_sha256)' >/dev/null || { p5_fail 'Unknown jailbreak kernel patch'; return 2; }
+            kernel_sha=$(printf '%s' "$kernel_evidence"|jq -r .output_sha256)
+            case "$kernel_id" in
+                kernel-img3-*)
+                    p5_temp; kernel_raw="$P5_TMP/jailbreak-verify.macho"
+                    p5_unpack_kernel "$bundle/boot/kernelcache.img3" "$kernel_raw" || return $?
+                    [ "$(p5_sha "$kernel_raw")" = "$kernel_sha" ] || { p5_fail 'Jailbreak boot kernel differs from patch result'; return 2; } ;;
+                *) [ "$(jq -r --arg id "$kernel_id" '.files[]|select(.id==$id)|.sha256' "$report")" = "$kernel_sha" ] || return 2 ;;
+            esac
+        done < <(jq -r '.files[]|select(.id=="kernel-validated" or .id=="kernel-wifi-candidate" or .id=="kernel-img3-validated" or .id=="kernel-img3-wifi-candidate")|.id' "$report")
+    fi
     if jq -e '.files|any(.id=="kernel-wifi-candidate" or .id=="kernel-img3-wifi-candidate")' "$report" >/dev/null; then
         if [ "$boot_only" = yes ]; then p5_wifi_check "$bundle/boot/kernelcache.img3" "$bundle/boot/DeviceTree.img3" "$model" >/dev/null || return $?;
         else p5_wifi_check "$bundle/boot/kernelcache.macho" "$bundle/boot/DeviceTree.dtb" "$model" >/dev/null || return $?; fi
@@ -164,6 +189,8 @@ p5_catalog_check() {
             while IFS=$'\t' read -r path size sha; do path=$(p5_relative "$P5_ROOT/patches" "$path"); p5_check_file "$path" "$size" "$sha"; done < <(printf '%s' "$spec"|jq -r '.variants[]?|[.patch,.delta.size,.delta.sha256]|@tsv')
         done < <(jq -r --arg model "$model" '.catalogs[$model].recipes|keys[]' "$P5_CATALOG")
     done
+    spec=$(p5_read_spec jailbreak/kernel iPhone5,4)
+    while IFS=$'\t' read -r path size sha; do path=$(p5_relative "$P5_ROOT/patches" "$path"); p5_check_file "$path" "$size" "$sha"; done < <(printf '%s' "$spec"|jq -r '.variants[]|[.patch,.delta.size,.delta.sha256]|@tsv')
     printf '{"passed":true,"models":["iPhone5,3","iPhone5,4"]}\n'
 }
 p5_input_ids() {
@@ -183,13 +210,13 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     if [ "$command" = build ] && [ -n "$(p5_get out)" ]; then p5_output_temp "$(p5_get out)"; else p5_temp; fi
     result="$P5_TMP/result.json"
     case "$command" in
-        help|--help) printf 'Usage: patchctl.sh check|list|inputs|build|doctor|verify|ramboot [options]\n'; exit 0 ;;
+        help|--help) printf 'Usage: patchctl.sh check|list|inputs|build|doctor|verify|ramboot [options]\nBuild/doctor: --jailbreak yes|no (default: yes)\n'; exit 0 ;;
         check) p5_catalog_check > "$result" ;;
         list) jq -n --arg model "$model" --argjson selected "$(p5_select "$profile" "$extras" "$only" "$model")" '{model:$model,selected:$selected}' > "$result" ;;
         inputs) selected=$(p5_select "$profile" "$extras" "$only" "$model"); while IFS= read -r id; do p5_input_ids "$id" "$model" "$selected"; done < <(printf '%s' "$selected"|jq -r '.[]') | LC_ALL=C sort -u | jq -Rsc 'split("\n")|map(select(length>0))' > "$result" ;;
         build|doctor) p5_required inputs; [ "$command" != build ] || p5_required out
             doctor=no; [ "$command" != doctor ] || doctor=yes
-            p5_build "$(p5_get inputs)" "$(p5_get out)" "$profile" "$extras" "$only" "$model" "$(p5_get tools-dir "$P5_TOOLS")" "$(p5_get donor-inputs)" "$(p5_get keys)" "$doctor" > "$result" ;;
+            p5_build "$(p5_get inputs)" "$(p5_get out)" "$profile" "$extras" "$only" "$model" "$(p5_get tools-dir "$P5_TOOLS")" "$(p5_get donor-inputs)" "$(p5_get keys)" "$doctor" "$(p5_get jailbreak yes)" > "$result" ;;
         verify) p5_required bundle; p5_verify_bundle "$(p5_get bundle)" "$(p5_get boot-only no)" > "$result" ;;
         ramboot) source "$P5_LIB/hosttools.sh"; p5_required bundle ecid; p5_ramboot "$(p5_get bundle)" "$(p5_get tools-dir "$P5_TOOLS")" "$(p5_get ecid)" "$(p5_get execute no)" > "$result" ;;
         *) p5_fail "Unknown operation: $command"; exit 2 ;;

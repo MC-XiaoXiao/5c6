@@ -9,7 +9,7 @@ p5_bootstrap() {
     done < <(jq -c '.archives[]' "$patches/bootstrap.json")
     jq --arg dir "$patches" '{archives:[.archives[]|$dir+"/"+.path],filter_prefix:"private/var",keep_prefixes:["private/var/lib","private/var/root/Media/Cydia"],rename_prefix:"private/project5c-jailbreak/seed",exclude:["Library/LaunchDaemons/com.saurik.Cydia.Startup.plist"]}' "$patches/bootstrap.json" > "$P5_TMP/bootstrap-policy.json"
     count=$(p5_native tar-repack "$P5_TMP/bootstrap-policy.json" "$output") || return $?
-    essential='["Applications/Cydia.app/Cydia","bin/bash","usr/bin/dpkg","usr/libexec/cydia/startup","private/project5c-jailbreak/seed/lib/dpkg/status"]'
+    essential='["Applications/Cydia.app/Cydia","bin/bash","usr/bin/dpkg","usr/bin/dpkg-query","usr/libexec/cydia/startup","private/project5c-jailbreak/seed/lib/dpkg/status"]'
     while IFS= read -r rel; do
         bsdtar -xOf "$output" "$rel" > "$P5_TMP/bootstrap-essential" || return $?
         [ -s "$P5_TMP/bootstrap-essential" ] || { p5_fail "Bootstrap lacks $rel"; return 2; }

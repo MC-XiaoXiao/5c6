@@ -52,6 +52,7 @@ p5_restore_prepare() {
     wifi_dir=$(p5_get wifi-firmware-dir); bb=$(p5_get baseband-firmware); native=$(p5_get baseband-source); ecid=$(p5_get baseband-ecid)
     p5_require_tools "$bins" hfsplus xpwntool iBoot32Patcher; source=$(p5_get dmg-tool "$bins/dmg"); [ -x "$source" ] || { p5_fail 'Missing DMG builder'; return 2; }
     report=$(p5_verify_bundle "$bundle"); target=$(printf '%s' "$report"|jq .target); model=$(printf '%s' "$target"|jq -r .ProductType); board=$(printf '%s' "$target"|jq -r '.HardwareModel|ascii_downcase'); short=${board:0:3}; components=$(p5_components "$model"); all_flash=$(printf '%s' "$components"|jq -r '.devicetree|split("/")|.[0:-1]|join("/")')
+    printf '%s' "$report"|jq -e --arg policy "$(p5_get jailbreak yes)" '(.jailbreak_kernel.enabled//false)==($policy=="yes") and ($policy!="yes" or .jailbreak_kernel.revision==1)' >/dev/null || { p5_fail 'Rebuild bundle with matching --jailbreak policy (iOS 6 kernel patch revision 1)'; return 2; }
     if printf '%s' "$report"|jq -e '.files|any(.id=="kernel-wifi-candidate")' >/dev/null; then
         [ -n "$wifi_dir" ] || { p5_fail 'Candidate kernel requires matching Wi-Fi donor firmware'; return 2; }
         wifi=$(p5_wifi_files "$wifi_dir" "$model"|jq -s .); wifi_hashes=$(printf '%s' "$wifi"|jq 'map({key:.path,value:.sha256})|from_entries')
@@ -90,7 +91,7 @@ p5_restore_prepare() {
             activation=$(printf '%s' "$activation"|jq --arg version "$(printf '%s' "$version"|jq -r .ProductVersion)" '.+{version:$version,path:"usr/libexec/lockdownd"}') ;;
         none) ;; *) p5_fail 'Unknown activation policy'; return 2 ;;
     esac
-    case "$(p5_get jailbreak yes)" in yes) jailbreak=$(p5_bootstrap "$temp/jailbreak.tar") ;; no) ;; *) return 2 ;; esac
+    case "$(p5_get jailbreak yes)" in yes) jailbreak=$(p5_bootstrap "$temp/jailbreak.tar"|jq --argjson kernel "$(printf '%s' "$report"|jq .jailbreak_kernel)" '.+{kernel:$kernel}') ;; no) ;; *) return 2 ;; esac
     p5_rootfs_plan "$bundle" "$root" "$temp/configs" "$temp/plan.json" "$bb" "$native" "$(p5_get jailbreak yes)" > /dev/null
     p5_log 'Copy and grow RootFS HFS image'
     system="$out/RootFS.hfs"; layout=$(p5_native hfs-copy "$original_root" "$system"); size=$((( $(p5_size "$system")+128*1048576+4095)/4096*4096))

@@ -153,7 +153,7 @@ ensure_tools() {
 }
 build_bundle() {
     check_version --inputs "$WORK/inputs" --identity-only || return $?
-    local build_args=(--model "$MODEL" --profile "$PROFILE" --extras "$EXTRAS" --inputs "$WORK/inputs" --tools-dir "$HOST_TOOLS" --out "$WORK/bundle")
+    local build_args=(--jailbreak "$JAILBREAK" --model "$MODEL" --profile "$PROFILE" --extras "$EXTRAS" --inputs "$WORK/inputs" --tools-dir "$HOST_TOOLS" --out "$WORK/bundle")
     if [ -n "$DONOR_INPUTS" ]; then build_args+=(--donor-inputs "$DONOR_INPUTS"); fi
     if [ -n "$KEYS" ]; then build_args+=(--keys "$KEYS");
     elif [ -f "$WORK/firmware/keys.json" ]; then build_args+=(--keys "$WORK/firmware/keys.json"); fi
@@ -165,6 +165,7 @@ resolve_work() {
         if [ "$PROFILE" != native6-validated ]; then WORK="$WORK-$PROFILE"; fi
         if [ -n "$EXTRAS" ]; then WORK="$WORK-${EXTRAS//,/-}"; fi
         if [ "$BASEBAND_DISABLED" = no ]; then WORK="$WORK-native-baseband-$ECID"; fi
+        if [ "$JAILBREAK" = yes ]; then WORK="$WORK-jb1"; fi
     fi
 }
 prepare_firmware() {
@@ -305,7 +306,7 @@ firmware_choices() {
     case "$CHOICE" in 0) VERSION=6.1.3 ;; 1) VERSION=6.1.4 ;; *) return 1 ;; esac
     select_option --default "$activation_default" 'Activation' 'Hacktivate' 'Keep stock activation' 'Back' || return 1
     case "$CHOICE" in 0) ACTIVATION=hacktivate ;; 1) ACTIVATION=none ;; *) return 1 ;; esac
-    select_option --default "$jailbreak_default" 'Jailbreak' 'Install Cydia and Substrate' 'No jailbreak' 'Back' || return 1
+    select_option --default "$jailbreak_default" 'Jailbreak' 'Install iOS 6 jailbreak, Cydia and Substrate' 'No jailbreak' 'Back' || return 1
     case "$CHOICE" in 0) JAILBREAK=yes ;; 1) JAILBREAK=no ;; *) return 1 ;; esac
     printf 'CommCenter runtime patches: %s\n' "$([ "$BASEBAND_DISABLED" = yes ] && printf disabled || printf enabled)"
     printf 'Baseband transfer: disabled\n'
