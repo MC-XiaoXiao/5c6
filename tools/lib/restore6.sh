@@ -2,6 +2,8 @@
 source "$(dirname -- "${BASH_SOURCE[0]}")/rootfs.sh"
 source "$P5_LIB/hosttools.sh"
 source "$P5_LIB/jailbreak.sh"
+source "$P5_LIB/restore-kernel.sh"
+source "$P5_LIB/baseband-native.sh"
 P5_BOOTARGS='rd=md0 -v nand-enable-reformat=1 amfi=0xff amfi_get_out_of_my_way=1 cs_enforcement_disable=1 pio-error=0'
 P5_FLASH='{"FlashNOR":false,"UpdateBaseband":false,"FormatForLwVM":true,"CreateFilesystemPartitions":true,"SystemImage":true}'
 p5_hfs_extract() {
@@ -46,7 +48,8 @@ p5_reset_session() {
 }
 p5_restore_prepare() {
     p5_required bundle rootfs-hfs ramdisk-hfs ramdisk-template ibec-raw out
-    local bins=$1 bundle out original_root original_ram template ibec report target model board short components wifi_dir bb native ecid native_report=null bb_receipt=null activation=null jailbreak=null version root temp system size ramdisk options restored asr layout dmg_report wifi='[]' wifi_hashes='{}' wifi_compat=null path row id key source rel sha mode all_flash bb_files='[]' receipts='{}' artifact_paths
+    local sensor_dependency=null
+    local bins=$1 bundle out original_root original_ram template ibec report target model board short components wifi_dir bb native ecid native_report=null native_flow=null bb_receipt=null activation=null jailbreak=null version root temp system size ramdisk options restored asr layout dmg_report wifi='[]' wifi_hashes='{}' wifi_compat=null path row id key source rel sha mode all_flash bb_files='[]' receipts='{}' artifact_paths
     bundle=$(p5_abs "$(p5_get bundle)"); out=$(p5_abs "$(p5_get out)")
     original_root=$(p5_abs "$(p5_get rootfs-hfs)"); original_ram=$(p5_abs "$(p5_get ramdisk-hfs)"); template=$(p5_get ramdisk-template); ibec=$(p5_get ibec-raw)
     wifi_dir=$(p5_get wifi-firmware-dir); bb=$(p5_get baseband-firmware); native=$(p5_get baseband-source); ecid=$(p5_get baseband-ecid)
@@ -115,6 +118,10 @@ p5_restore_prepare() {
     for key in kernel devicetree ibss ibec; do
         case "$key" in kernel) source=kernelcache.img3 ;; devicetree) source=DeviceTree.img3 ;; ibss) source=iBSS.dfu ;; ibec) source=iBEC.dfu ;; esac
         path=$(printf '%s' "$components"|jq -r --arg key "$key" '.[$key]'); mkdir -p "$out/$(dirname -- "$path")"; cp -- "$bundle/boot/$source" "$out/$path"
+        if [ "$key" = kernel ]; then
+            sensor_dependency=$(p5_restore_sensor_kernel "$out/$path" "$temp/restore-kernel.img3") || return $?
+            mv -- "$temp/restore-kernel.img3" "$out/$path" || return $?
+        fi
     done
     p5_log 'Prepare restore iBEC and install RootFS kernel'
     LC_ALL=C grep -aFq 'iBoot-' "$ibec" && LC_ALL=C grep -aFq "iBEC for $board" "$ibec" || { p5_fail 'Restore iBEC donor model differs'; return 2; }
@@ -132,9 +139,18 @@ p5_restore_prepare() {
     p5_hfs_extract "$bins" "$ramdisk" usr/sbin/asr "$temp/asr.original"; asr=$(p5_patch_ramdisk_binary asr "$temp/asr.original" "$temp/asr"); p5_hfs_add "$bins" "$ramdisk" usr/sbin/asr "$temp/asr" 493
     p5_hfs_extract "$bins" "$ramdisk" usr/local/bin/restored_external "$temp/restored.original"
     LC_ALL=C grep -aFq FormatForLwVM "$temp/restored.original" || return 2
+    if [ "$native_report" != null ]; then
+        native_flow=$(p5_native_bb_ramdisk "$bins" "$ramdisk" "$temp/restored.original" "$temp/restored.compat") || return $?
+        cp -- "$temp/restored.compat" "$temp/restored.original"
+    fi
     restored=$(p5_patch_ramdisk_binary restored "$temp/restored.original" "$temp/restored"); p5_hfs_add "$bins" "$ramdisk" usr/local/bin/restored_external "$temp/restored" 493
+    restored=$(printf '%s' "$restored"|jq --arg sha "$(p5_sha "$temp/restored")" '.+{sha256:$sha}')
     local partition; partition=$(((size+1048575)/1048576+256)); [ "$partition" -ge 2048 ] || partition=2048
     options=$(printf '%s' "$P5_FLASH"|jq --argjson partition "$partition" '.+{SystemPartitionSize:$partition}'); printf '%s' "$options"|p5_write_plist "$temp/options.plist"
+    if [ "$native_flow" != null ]; then
+        options=$(printf '%s' "$options"|p5_native_bb_restore_options)
+        printf '%s' "$options"|p5_write_plist "$temp/options.plist"
+    fi
     for name in options.plist "options.$short.plist"; do p5_hfs_add "$bins" "$ramdisk" "usr/local/share/restore/$name" "$temp/options.plist" 420; done
     p5_native img3-wrap "$template" "$ramdisk" "$out/RestoreRamDisk.dmg" plaintext; p5_native ramdisk-check "$out/RestoreRamDisk.dmg" >/dev/null
     jq -n --arg model "$model" --arg board "$board" --arg short "$short" --argjson target "$(p5_target "$model")" --argjson version "$version" --argjson components "$components" --argjson partition "$partition" --argjson native "$native_report" '{DeviceClass:"iPhone",DeviceMap:[{BDID:$target.board_id,CPID:35152,BoardConfig:$board,Platform:"s5l8950x",SCEP:16}],FirmwareDirectory:"Firmware",ProductType:$model,SupportedProductTypes:[$model],ProductVersion:$version.ProductVersion,ProductBuildVersion:$version.ProductBuildVersion,KernelCachesByTarget:{($short):{Release:$components.kernel}},RestoreRamDisks:{User:$components.ramdisk},SystemRestoreImages:{User:$components.rootfs},MinimumSystemPartition:{($components.rootfs):$partition}}|if $native!=null then .Project5CBasebandIdentity=($native.identity|.Manifest.BasebandFirmware.Info.Path="Firmware/Baseband/Baseband.bbfw") else . end'|p5_write_plist "$out/Restore.plist"
@@ -151,13 +167,16 @@ p5_restore_prepare() {
     (cd -- "$out"; zip -q -0 -X Restore.ipsw ${zip_args[@]+"${zip_args[@]}"})
     p5_log 'Record generated restore artifact checksums'
     while IFS= read -r path; do receipts=$(printf '%s' "$receipts"|jq --arg path "$path" --arg sha "$(p5_sha "$out/$path")" '.[$path]=$sha'); done < <(printf '%s' "$artifact_paths"|jq -r '.[],"Restore.ipsw"')
-    jq -n --argjson activation "$activation" --argjson jailbreak "$jailbreak" --arg target "$(printf '%s' "$target"|jq -r .HardwareModel)" --argjson version "$version" --slurpfile plan "$temp/plan.json" --argjson layout "$layout" --argjson report "$report" --argjson asr "$asr" --argjson restored "$restored" --argjson wifi "$wifi" --argjson hashes "$wifi_hashes" --argjson compat "$wifi_compat" --arg bb_sha "${bb:+$(p5_sha "$bb")}" --argjson native "$native_report" --arg ecid "$ecid" --arg native_sha "${native:+$(p5_sha "$native/source.json")}" --argjson bb_files "$bb_files" --argjson bb_receipt "$bb_receipt" --argjson dmg "$dmg_report" --argjson options "$options" --arg bootargs "$P5_BOOTARGS" --argjson components "$components" --argjson receipts "$receipts" '{schema:1,experimental:true,physical_restore_verified:false,activation:$activation,jailbreak:$jailbreak,target:$target,source_version:$version,rootfs_patch_files:[$plan[0][].path],source_hfs_layout:$layout,selected_artifacts:[$report.files[].id],asr:$asr,restored:$restored,wifi_firmware_files:[$wifi[].path],wifi_firmware_sha256:$hashes,wifi_ramdisk_firmware_sha256:$hashes,wifi_compatibility:$compat,baseband_firmware_sha256:(if $bb_sha=="" then null else $bb_sha end),baseband_ecid:(if $ecid=="" then null else ($ecid|if startswith("0x") then error("ECID must be normalized") else tonumber end) end),baseband_native:($native!=null),baseband_source_sha256:(if $native_sha=="" then null else $native_sha end),baseband_version:$native.spec.version,baseband_files:$bb_files,baseband_personalization:$bb_receipt,bluetooth_launch_environment:(if $report.files|any(.id=="bluetooth") then {DYLD_INSERT_LIBRARIES:"",_MSSafeMode:"1"} else null end),system_dmg:$dmg,restore_options:$options,boot_args:$bootargs,components:$components,rootfs_contains_patched_kernel:true,nand_writes:false,integrity_receipts:$receipts}' > "$out/restore.json.tmp"
+    jq -n --argjson activation "$activation" --argjson jailbreak "$jailbreak" --arg target "$(printf '%s' "$target"|jq -r .HardwareModel)" --argjson version "$version" --slurpfile plan "$temp/plan.json" --argjson layout "$layout" --argjson report "$report" --argjson asr "$asr" --argjson native_flow "$native_flow" --argjson restored "$restored" --argjson wifi "$wifi" --argjson hashes "$wifi_hashes" --argjson compat "$wifi_compat" --arg bb_sha "${bb:+$(p5_sha "$bb")}" --argjson native "$native_report" --arg ecid "$ecid" --arg native_sha "${native:+$(p5_sha "$native/source.json")}" --argjson bb_files "$bb_files" --argjson bb_receipt "$bb_receipt" --argjson dmg "$dmg_report" --argjson options "$options" --arg bootargs "$P5_BOOTARGS" --argjson components "$components" --argjson receipts "$receipts" '{schema:1,experimental:true,physical_restore_verified:false,activation:$activation,jailbreak:$jailbreak,target:$target,source_version:$version,rootfs_patch_files:[$plan[0][].path],source_hfs_layout:$layout,selected_artifacts:[$report.files[].id],asr:$asr,restored:$restored,wifi_firmware_files:[$wifi[].path],wifi_firmware_sha256:$hashes,wifi_ramdisk_firmware_sha256:$hashes,wifi_compatibility:$compat,baseband_firmware_sha256:(if $bb_sha=="" then null else $bb_sha end),baseband_ecid:(if $ecid=="" then null else ($ecid|if startswith("0x") then error("ECID must be normalized") else tonumber end) end),baseband_native:($native!=null),baseband_native_flow:$native_flow,baseband_source_sha256:(if $native_sha=="" then null else $native_sha end),baseband_version:$native.spec.version,baseband_files:$bb_files,baseband_personalization:$bb_receipt,bluetooth_launch_environment:(if $report.files|any(.id=="bluetooth") then {DYLD_INSERT_LIBRARIES:"",_MSSafeMode:"1"} else null end),system_dmg:$dmg,restore_options:$options,boot_args:$bootargs,components:$components,rootfs_contains_patched_kernel:true,nand_writes:false,integrity_receipts:$receipts}' > "$out/restore.json.tmp"
+    report=$(jq --argjson dependency "$sensor_dependency" '.restore_sensor_dependency=$dependency' "$out/restore.json.tmp") || return $?
+    printf '%s\n' "$report" > "$out/restore.json.tmp" || return $?
     mv -- "$out/restore.json.tmp" "$out/restore.json"; cat "$out/restore.json"
 }
 p5_restore_session() {
     local dir=$1 report target components name sha path native expected actual
+    [ ! -e "$dir/.project5c-incomplete" ] || { p5_fail 'Restore session build did not finish'; return 2; }
     report=$(cat "$dir/restore.json") || return $?; target=$(printf '%s' "$report"|jq -r .target) || return $?; components=$(p5_components "$target") || return $?
-    printf '%s' "$report"|jq -e --arg bootargs "$P5_BOOTARGS" --argjson components "$components" --argjson flash "$P5_FLASH" 'has("restored") and .boot_args==$bootargs and (.components==$components or .components==null) and (.restore_options|del(.SystemPartitionSize))==$flash and (.restore_options.SystemPartitionSize>=2048) and (.baseband_files//[]|all(.=="Firmware/Baseband/Mav7personalized.zip" or .=="Firmware/Baseband/personalization.json" or .=="Firmware/Baseband/Baseband.bbfw" or .=="Firmware/Baseband/BuildManifest.plist" or .=="Firmware/Baseband/identity.plist" or .=="Firmware/Baseband/source.json"))' >/dev/null || { p5_fail 'Restore session layout/options differ'; return 2; }
+    printf '%s' "$report"|jq -e --arg bootargs "$P5_BOOTARGS" --argjson components "$components" --argjson flash "$P5_FLASH" --argjson expected_flash "$(if printf '%s' "$report"|jq -e '.baseband_native_flow!=null' >/dev/null; then printf '%s' "$P5_FLASH"|p5_native_bb_restore_options; else printf '%s' "$P5_FLASH"; fi)" 'has("restored") and .boot_args==$bootargs and (.components==$components or .components==null) and (.restore_options|del(.SystemPartitionSize))==$expected_flash and (.restore_options.SystemPartitionSize>=2048) and (.baseband_files//[]|all(.=="Firmware/Baseband/Mav7personalized.zip" or .=="Firmware/Baseband/personalization.json" or .=="Firmware/Baseband/Baseband.bbfw" or .=="Firmware/Baseband/BuildManifest.plist" or .=="Firmware/Baseband/identity.plist" or .=="Firmware/Baseband/source.json"))' >/dev/null || { p5_fail 'Restore session layout/options differ'; return 2; }
     while IFS= read -r path; do
         name=$(p5_relative "$dir" "$path") || return $?; sha=$(printf '%s' "$report"|jq -er --arg path "$path" '.integrity_receipts[$path]') || return $?
         [ -f "$name" ] && [ "$(p5_sha "$name")" = "$sha" ] || { p5_fail "Generated restore component changed: $path"; return 2; }
@@ -171,6 +190,9 @@ p5_restore_session() {
         [ "$(p5_sha "$dir/Firmware/Baseband/source.json")" = "$(printf '%s' "$report"|jq -r .baseband_source_sha256)" ] || return 2
         expected=$(printf '%s' "$native"|jq '.identity|.Manifest.BasebandFirmware.Info.Path="Firmware/Baseband/Baseband.bbfw"') || return $?; actual=$(p5_plist "$dir/Restore.plist"|jq .Project5CBasebandIdentity) || return $?
         jq -ne --argjson expected "$expected" --argjson actual "$actual" '$expected==$actual' >/dev/null || { p5_fail 'Native baseband restore identity changed'; return 2; }
+        if printf '%s' "$report"|jq -e '.baseband_native_flow!=null' >/dev/null; then
+            p5_native_bb_verify "$dir" "$report" "$(p5_get tools-dir "$P5_TOOLS")" || return $?
+        fi
     fi
     local kernel tree; kernel=$(printf '%s' "$components"|jq -r .kernel); tree=$(printf '%s' "$components"|jq -r .devicetree)
     p5_check_components "$dir/$kernel" "$dir/$tree" "$target" || return $?
@@ -195,15 +217,19 @@ p5_restore_boot() {
     jq -n --arg execute "$execute" --arg bins "$bins" --argjson commands "$commands" '{preview:($execute!="yes"),nand_writes:false,tools_directory:$bins,commands:$commands}'
 }
 p5_restore_host_check() {
-    local host=$1 version
+    local host=$1 native=${2:-false} version
     [ -x "$host" ] || { p5_fail 'Restore host is missing'; return 2; }
     version=$(p5_run_timeout 15 "$(dirname -- "$host")" "$host" --version) || return $?
-    [[ "$version" = *native6-5c-no-baseband* ]] || { p5_fail 'Use the patched restore host that disables baseband transfer'; return 2; }
+    if [ "$native" = true ]; then
+        [[ "$version" = *native6-5c-bb-native-v2* ]] || { p5_fail 'Rebuild the native BasebandData host with nonce-bound ticket caching (v2)'; return 2; }
+    else
+        [[ "$version" = *native6-5c-no-baseband* || "$version" = *native6-5c-bb-native-v[12]* ]] || { p5_fail 'Use a Project5C patched restore host'; return 2; }
+    fi
 }
 p5_restore_archive() {
     local dir=$1 name previous=no history="$1/restore-history" archive
     # Preserve both complete and interrupted attempts before reusing a session.
-    for name in restore.log result.json; do
+    for name in restore.log restore-debug.log result.json; do
         [ ! -L "$dir/$name" ] || { p5_fail "Restore output is a symlink: $dir/$name"; return 2; }
         [ -e "$dir/$name" ] || continue
         [ -f "$dir/$name" ] || { p5_fail "Restore output is not a regular file: $dir/$name"; return 2; }
@@ -213,7 +239,7 @@ p5_restore_archive() {
     [ ! -L "$history" ] && { [ ! -e "$history" ] || [ -d "$history" ]; } || { p5_fail "Invalid restore history directory: $history"; return 2; }
     mkdir -p "$history" || { p5_fail "Cannot create restore history: $history"; return 2; }
     archive=$(mktemp -d "$history/attempt-$(date -u '+%Y%m%dT%H%M%SZ').XXXXXX") || { p5_fail "Cannot create restore archive in $history"; return 2; }
-    for name in restore.log result.json; do
+    for name in restore.log restore-debug.log result.json; do
         [ ! -e "$dir/$name" ] || mv -- "$dir/$name" "$archive/$name" || { p5_fail "Cannot archive $dir/$name in $archive"; return 2; }
     done
     p5_log "Previous restore output preserved in $archive"
@@ -222,24 +248,32 @@ p5_restore_ecid() {
     printf '%s' "$1"|jq -e --argjson ecid "$(($2))" '.baseband_ecid==null or .baseband_ecid==$ecid' >/dev/null || { p5_fail 'Modem resource ECID differs'; return 2; }
 }
 p5_restore_flash() {
-    local dir=$1 ecid=$2 execute=$3 erase=$4 host=$5 report target command probe code finished=false
+    local dir=$1 ecid=$2 execute=$3 erase=$4 host=$5 report target command probe code finished=false native=false bb_done=false evidence=''
     report=$(p5_restore_session "$dir") || return $?; target=$(printf '%s' "$report"|jq -r .target)
+    printf '%s' "$report"|jq -e '.diagnostic_only!=true' >/dev/null || { p5_fail 'Diagnostic session cannot start an OS restore'; return 2; }
     p5_restore_ecid "$report" "$ecid" || return $?
+    native=$(printf '%s' "$report"|jq '.baseband_native==true')
+    if [ "$native" = true ]; then p5_native_bb_verify "$dir" "$report" "$(p5_get tools-dir "$P5_TOOLS")" yes || return $?; fi
     local hex; printf -v hex '0x%x' "$((ecid))"
     command=$(jq -n --arg host "$host" --arg hex "$hex" --arg dir "$dir" '[$host,"-c","-e","-R","-x","-y","-i",$hex,"--cache-path",($dir+"/cache"),($dir+"/Restore.ipsw")]')
+    if [ "$native" = true ]; then command=$(printf '%s' "$command"|jq '.[0:-1]+["--project5c-baseband",.[-1]]'); fi
+    if [ "$(p5_get restore-debug no)" = yes ]; then command=$(printf '%s' "$command"|jq --arg log "$dir/restore-debug.log" '.[0:-1]+["-d",("--logfile="+$log),.[-1]]'); fi
     if [ "$execute" != yes ]; then
         printf '%s' "$command"|jq -r '@sh' >&2
-        jq -n --argjson command "$command" '{preview:true,erases_system_and_data:true,preserve_nor:true,update_baseband:false,command:$command}'; return
+        jq -n --argjson command "$command" --argjson native "$native" '{preview:true,erases_system_and_data:true,preserve_nor:true,update_baseband:$native,ramdisk_count:1,baseband_flow:(if $native then "idevicerestore-BasebandData" else null end),command:$command}'; return
     fi
     [ "$erase" = yes ] || { p5_fail 'Actual restore requires --execute --erase'; return 2; }
-    p5_restore_host_check "$host" || return $?; p5_native dmg-check "$dir/RootFS.dmg" >/dev/null || return $?; probe=$(p5_native restored-probe "$((ecid))" "$target") || return $?
+    p5_restore_host_check "$host" "$native" || return $?; p5_native dmg-check "$dir/RootFS.dmg" >/dev/null || return $?; probe=$(p5_native restored-probe "$((ecid))" "$target") || return $?
     p5_restore_archive "$dir" || return $?
+    if [ "$native" = true ]; then evidence=$(mktemp -d "$dir/baseband-attempt-XXXXXX") || return $?; fi
     local args=(); while IFS= read -r value; do args+=("$value"); done < <(printf '%s' "$command"|jq -r '.[1:][]')
     set +e
-    (unset PROJECT5C_BB_SAVE; p5_tool_env "$(dirname -- "$host")"; if command -v stdbuf >/dev/null; then stdbuf -oL -eL "$host" ${args[@]+"${args[@]}"}; else "$host" ${args[@]+"${args[@]}"}; fi) 2>&1 | tee "$dir/restore.log" >&2
+    (unset PROJECT5C_BB_SAVE; [ "$native" != true ] || export PROJECT5C_BB_SAVE="$evidence/native"; p5_tool_env "$(dirname -- "$host")"; if command -v stdbuf >/dev/null; then stdbuf -oL -eL "$host" ${args[@]+"${args[@]}"}; else "$host" ${args[@]+"${args[@]}"}; fi) 2>&1 | tee "$dir/restore.log" >&2
     code=${PIPESTATUS[0]}; set -e
     if [ "$code" = 0 ] && grep -q 'Status: Restore Finished' "$dir/restore.log" && ! grep -q 'Not sending NORData' "$dir/restore.log"; then finished=true; fi
-    jq -n --argjson code "$code" --argjson finished "$finished" --argjson probe "$probe" '{returncode:$code,restore_finished:$finished,device_probe:$probe,physical_restore_verified:$finished,normal_boot_verified:false,activation_verified:false,tethered_boot_required:true,baseband_update_requested:false,physical_baseband_update_verified:false,personalized_baseband_sha256:null}' > "$dir/result.json"
+    if [ "$native" = true ] && [ "$finished" = true ] && grep -q 'Updating Baseband completed' "$dir/restore.log"; then bb_done=true; fi
+    jq -n --argjson code "$code" --argjson finished "$finished" --argjson probe "$probe" --argjson native "$native" --argjson bb_done "$bb_done" --arg evidence "$evidence" '{returncode:$code,restore_finished:$finished,device_probe:$probe,physical_restore_verified:$finished,normal_boot_verified:false,activation_verified:false,tethered_boot_required:true,baseband_update_requested:$native,physical_baseband_update_verified:$bb_done,evidence_directory:$evidence}' > "$dir/result.json"
+    [ "$native" != true ] || [ "$bb_done" = true ] || { p5_fail 'Native baseband did not complete; inspect restore.log and evidence'; return 2; }
     [ "$finished" = true ] || { p5_fail 'Restore did not report final success; inspect restore.log and result.json'; return 2; }
     cat "$dir/result.json"
 }
@@ -253,7 +287,8 @@ p5_restore_install() {
     [ "$erase" = yes ] || { p5_fail '--execute --erase is required before USB operations'; return 2; }
     report=$(p5_restore_session "$dir") || return $?; target=$(printf '%s' "$report"|jq -r .target)
     p5_restore_ecid "$report" "$ecid" || return $?
-    p5_require_boot "$bins" || return $?; p5_restore_host_check "$host" || return $?; p5_native dmg-check "$dir/RootFS.dmg" >/dev/null || return $?
+    p5_require_boot "$bins" || return $?; p5_restore_host_check "$host" "$(printf '%s' "$report"|jq '.baseband_native==true')" || return $?; p5_native dmg-check "$dir/RootFS.dmg" >/dev/null || return $?
+    if printf '%s' "$report"|jq -e '.baseband_native==true' >/dev/null; then p5_native_bb_verify "$dir" "$report" "$bins" yes || return $?; fi
     p5_restore_archive "$dir" || return $?
     p5_restore_boot "$dir" "$bins" "$ecid" yes >/dev/null || return $?
     start=$(date +%s); p5_log "Wait for matching restored (maximum $seconds seconds)"
@@ -268,10 +303,11 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     ECID=$(p5_get ecid 0); EXECUTE=$(p5_get execute no); ERASE=$(p5_get erase no); HOST=$(p5_get idevicerestore); [ -z "$HOST" ] || HOST=$(p5_abs "$HOST")
     if [ "$COMMAND" = prepare ] && [ -n "$(p5_get out)" ]; then p5_output_temp "$(p5_get out)"; else p5_temp; fi
     RESULT="$P5_TMP/result.json"
-    case "$COMMAND" in help|--help) printf 'Usage: restore6.sh prepare|verify|probe|boot|flash|install [options]\n'; exit 0 ;; esac
+    case "$COMMAND" in help|--help) printf 'Usage: restore6.sh prepare|enable-baseband|verify|probe|boot|flash|install [options]\n'; exit 0 ;; esac
     if [ "$EXECUTE" = yes ]; then [ "$((ECID))" -gt 0 ] || exit 2; p5_device_lock "$(p5_get lock "$HOME/.cache/project5c-native6-device.lock")"; fi
     case "$COMMAND" in
         prepare) if [ -n "$(p5_get baseband-ecid)" ]; then P5_ARG_baseband_ecid=$((P5_ARG_baseband_ecid)); fi; p5_restore_prepare "$BINS" > "$RESULT" ;;
+        enable-baseband) p5_required session out ramdisk-hfs; p5_native_bb_upgrade "$SESSION" "$(p5_abs "$(p5_get out)")" "$(p5_abs "$(p5_get ramdisk-hfs)")" "$BINS" > "$RESULT" ;;
         verify) p5_required session; REPORT=$(p5_restore_session "$SESSION"); jq -n --arg target "$(printf '%s' "$REPORT"|jq -r .target)" '{passed:true,target:$target,device_accessed:false}' > "$RESULT" ;;
         probe) p5_required ecid; p5_native restored-probe "$((ECID))" "$(p5_target "$(p5_get target iPhone5,4)"|jq -r .HardwareModel)" > "$RESULT" ;;
         boot) p5_required session ecid; p5_restore_boot "$SESSION" "$BINS" "$ECID" "$EXECUTE" > "$RESULT" ;;

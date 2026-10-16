@@ -7,14 +7,12 @@ VERSION=6.1.3
 ACTIVATION=hacktivate
 JAILBREAK=yes
 PROFILE=native6-wifi-candidate
-# EXTRAS=baseband  # Disabled by default until modem resources are needed.
 EXTRAS=
 WIFI_FIRMWARE_DIR=
 BASEBAND_FIRMWARE=
 BASEBAND_SOURCE=
 BASEBAND_QUERY=
-# BASEBAND_DISABLED=no
-BASEBAND_DISABLED=auto
+BASEBAND_DISABLED=no
 WORK="$ROOT/runtime"
 WORK_EXPLICIT=no
 BOOT_WORK=
@@ -45,12 +43,12 @@ Usage: ./tool.sh [menu|prepare|flash|boot] [options]
   --activation hacktivate|none Default: hacktivate
   --jailbreak yes|no          Default: yes
   --profile NAME              native6-wifi-candidate (default, both models) or native6-validated
-  --extras gps,baseband        Additional runtime patches; none enabled by default
+  --extras gps,baseband        Additional runtime patches; baseband enabled by default
   --wifi-firmware-dir PATH     Model-matched 43342a0 donor directory; packaged files used by default
   --baseband-firmware PATH     Optional personalized Mav7 ZIP override
   --baseband-query PATH        Optional device-bound query plist for offline parameter input
-  --baseband                   Enable CommCenter patches and prepare modem firmware resources
-  --no-baseband                Disable CommCenter patches and modem firmware resources
+  --baseband                   Restore OS and baseband together (default)
+  --no-baseband                Disable baseband updating, CommCenter patches and modem resources
   --work PATH                 Original inputs and generated bundle/session
   --tools-dir PATH            Native host tools, including device detection
   --source-ipsw PATH          iPhone 5 iOS 6.1.3 / 6.1.4 source IPSW
@@ -62,7 +60,8 @@ Usage: ./tool.sh [menu|prepare|flash|boot] [options]
   --execute                   Perform USB operations; otherwise preview
   --erase                     Required with --execute for flash
 Model and ECID are read from the connected device. No device, no menu.
-Baseband transfer is disabled. No baseband selection menu is shown.
+By default, idevicerestore signs and transfers modem firmware through
+the same iOS 6 restore ramdisk. NOR flashing remains disabled.
 No normal iOS boot is required. Enter DFU for the ordinary restore boot.
 EOF
 }
@@ -100,11 +99,6 @@ validate() {
     case "$ACTIVATION" in hacktivate|none) ;; *) fail 'Activation must be hacktivate or none'; return 2 ;; esac
     case "$JAILBREAK" in yes|no) ;; *) fail 'Jailbreak must be yes or no'; return 2 ;; esac
     case "$PROFILE" in native6-validated|native6-wifi-candidate) ;; *) fail 'Unknown patch profile'; return 2 ;; esac
-    if [ "$BASEBAND_DISABLED" = auto ]; then
-        BASEBAND_DISABLED=yes
-        case ",$EXTRAS," in *,baseband,*) BASEBAND_DISABLED=no ;; esac
-        [ -z "$BASEBAND_FIRMWARE$BASEBAND_QUERY" ] || BASEBAND_DISABLED=no
-    fi
     if [ "$BASEBAND_DISABLED" = yes ]; then
         if [ -n "$BASEBAND_FIRMWARE" ] || [ -n "$BASEBAND_QUERY" ]; then
             fail '--no-baseband conflicts with baseband firmware/query inputs'; return 2
@@ -150,6 +144,7 @@ ensure_tools() {
         bash "$LIB/tools.sh" setup --out "$HOST_TOOLS" || return $?
     fi
     bash "$LIB/tools.sh" check --out "$HOST_TOOLS" --scope restore >/dev/null || return $?
+    if [ "$BASEBAND_DISABLED" = no ]; then bash "$LIB/tools.sh" restore-host --out "$HOST_TOOLS" || return $?; fi
 }
 build_bundle() {
     check_version --inputs "$WORK/inputs" --identity-only || return $?
@@ -164,7 +159,7 @@ resolve_work() {
         WORK="$ROOT/runtime/firmware/$MODEL/$VERSION-$ACTIVATION-$JAILBREAK"
         if [ "$PROFILE" != native6-validated ]; then WORK="$WORK-$PROFILE"; fi
         if [ -n "$EXTRAS" ]; then WORK="$WORK-${EXTRAS//,/-}"; fi
-        if [ "$BASEBAND_DISABLED" = no ]; then WORK="$WORK-native-baseband-$ECID"; fi
+        if [ "$BASEBAND_DISABLED" = no ]; then WORK="$WORK-native-baseband-v4-$ECID"; fi
         if [ "$JAILBREAK" = yes ]; then WORK="$WORK-jb1"; fi
     fi
 }
@@ -190,7 +185,7 @@ prepare_firmware() {
     fi
     if [ "$BASEBAND_DISABLED" = no ] && [ -d "$WORK/baseband-source" ]; then BASEBAND_SOURCE="$WORK/baseband-source"; fi
     if [ "$BASEBAND_DISABLED" = no ] && [ -f "$WORK/session/restore.json" ]; then
-        jq -e ' .restore_options.UpdateBaseband==false ' "$WORK/session/restore.json" >/dev/null || return $?
+        jq -e '.restore_options.UpdateBaseband==true and .baseband_native_flow.flow=="idevicerestore-BasebandData" and .baseband_native_flow.factory_preserves_transport_profile==true and .baseband_native_flow.factory_reports_initialization_errors==true' "$WORK/session/restore.json" >/dev/null || { fail 'Rebuild this session with native BasebandData enabled; use a new --work directory'; return 2; }
     fi
     if [ ! -f "$WORK/session/restore.json" ] && [ ! -f "$WORK/inputs/SystemVersion.plist" ]; then
         if [ "$DOWNLOAD" = yes ]; then
@@ -222,7 +217,7 @@ prepare_firmware() {
             progress "Reuse existing patch bundle: $WORK/bundle (will verify before use)"
         fi
         if [ "$BASEBAND_DISABLED" = no ]; then
-            progress "Prepare model-matched baseband resources (modem transfer disabled)"
+            progress "Prepare model-matched firmware for native BasebandData signing"
             local bb_args=(--model "$MODEL" --ecid "$ECID" --mode "$MODE" --bundle "$WORK/bundle" --tools-dir "$HOST_TOOLS" --out "$WORK/baseband" --cache "$ROOT/runtime/downloads/baseband")
             if [ -n "$BASEBAND_QUERY" ] && [ -z "$BASEBAND_FIRMWARE" ]; then
                 BASEBAND_FIRMWARE=$(bash "$LIB/baseband.sh" ${bb_args[@]+"${bb_args[@]}"} --query "$BASEBAND_QUERY") || return $?
@@ -309,7 +304,7 @@ firmware_choices() {
     select_option --default "$jailbreak_default" 'Jailbreak' 'Install iOS 6 jailbreak, Cydia and Substrate' 'No jailbreak' 'Back' || return 1
     case "$CHOICE" in 0) JAILBREAK=yes ;; 1) JAILBREAK=no ;; *) return 1 ;; esac
     printf 'CommCenter runtime patches: %s\n' "$([ "$BASEBAND_DISABLED" = yes ] && printf disabled || printf enabled)"
-    printf 'Baseband transfer: disabled\n'
+    printf 'Baseband update: %s\n' "$([ "$BASEBAND_DISABLED" = yes ] && printf disabled || printf 'enabled (native BasebandData)')"
     resolve_work
     printf 'Workspace: %s\n' "$WORK"
     while [ -f "$WORK/session/restore.json" ] || [ -f "$WORK/firmware/source-rootfs.hfs" ]; do

@@ -20,7 +20,7 @@ read -r -a CFLAGS <<< "$(pkg-config --cflags libplist-2.0 openssl libzip libcurl
 read -r -a LIBS <<< "$(pkg-config --libs libplist-2.0 openssl libzip libcurl zlib libxml-2.0 libarchive)"
 TEMP="$OUT.tmp.$$"
 trap 'rm -f -- "$TEMP"' EXIT
-"${CC:-cc}" -O2 -std=gnu11 -Wall -Wextra -Werror -Wno-deprecated-declarations ${CFLAGS[@]+"${CFLAGS[@]}"} "$SRC/core.c" "$SRC/plist.c" "$SRC/zip.c" "$SRC/mux.c" "$SRC/archive.c" "$SRC/process.c" ${LIBS[@]+"${LIBS[@]}"} -lbz2 -o "$TEMP"
+"${CC:-cc}" -O2 -std=gnu11 -Wall -Wextra -Werror -Wno-deprecated-declarations ${CFLAGS[@]+"${CFLAGS[@]}"} "$SRC/core.c" "$SRC/plist.c" "$SRC/zip.c" "$SRC/mux.c" "$SRC/archive.c" "$SRC/process.c" "$SRC/macho.c" ${LIBS[@]+"${LIBS[@]}"} -lbz2 -o "$TEMP"
 chmod 755 "$TEMP"
 mv -f -- "$TEMP" "$OUT"
 printf 'Built native format tool: %s\n' "$OUT" >&2

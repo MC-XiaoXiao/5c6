@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
+source "$(dirname -- "${BASH_SOURCE[0]}")/firmware.sh"
+source "$P5_LIB/restore-kernel.sh"
 p5_recovery_fields() { p5_run_timeout 15 "$1" irecovery -q | awk 'match($0,/^[A-Z]+:/) {key=substr($0,1,RLENGTH-1);value=substr($0,RLENGTH+1);sub(/^[ \t]+/,"",value);print key "\t" value}' | jq -Rn '[inputs|split("\t")|{key:.[0],value:.[1]}]|from_entries'; }
 p5_check_dfu() {
     local fields=$1 ecid=$2 target=$3 actual chip board mode
@@ -61,15 +62,17 @@ p5_device_lock() {
     p5_native lock-fd 9 || { p5_fail 'Another device operation is running'; return 2; }
 }
 p5_ramboot() {
-    local bundle=$1 bins=$2 ecid=$3 execute=$4 report target args id fields
+    local bundle=$1 bins=$2 ecid=$3 execute=$4 report target args id fields kernel dependency
     report=$(p5_verify_bundle "$bundle" yes) || return $?; target=$(printf '%s' "$report"|jq -r .target.HardwareModel) || return $?
-    local commands; commands=$(jq -n --arg bins "$bins" --arg bundle "$(p5_abs "$bundle")" '[[($bins+"/irecovery"),"-f",($bundle+"/boot/iBEC.dfu")],[($bins+"/irecovery"),"-f",($bundle+"/boot/DeviceTree.img3")],[($bins+"/irecovery"),"-c","devicetree"],[($bins+"/irecovery"),"-f",($bundle+"/boot/kernelcache.img3")],[($bins+"/irecovery"),"-c","bootx"]]')
+    p5_temp || return $?; kernel="$P5_TMP/ramboot-kernel.img3"
+    dependency=$(p5_restore_sensor_kernel "$bundle/boot/kernelcache.img3" "$kernel") || return $?
+    local commands; commands=$(jq -n --arg bins "$bins" --arg bundle "$(p5_abs "$bundle")" --arg kernel "$kernel" '[[($bins+"/irecovery"),"-f",($bundle+"/boot/iBEC.dfu")],[($bins+"/irecovery"),"-f",($bundle+"/boot/DeviceTree.img3")],[($bins+"/irecovery"),"-c","devicetree"],[($bins+"/irecovery"),"-f",$kernel],[($bins+"/irecovery"),"-c","bootx"]]')
     if [ "$execute" = yes ]; then
         p5_device_lock || return $?; p5_prepare_ibss "$bins" "$ecid" "$target" "$bundle/boot/iBSS.dfu" || return $?
         p5_run_timeout 60 "$bins" irecovery -f "$bundle/boot/iBEC.dfu" >&2 || return $?; sleep 2 || return $?
         fields=$(p5_recovery_fields "$bins") || return $?; p5_check_recovery "$fields" "$ecid" "$target" || return $?
         p5_run_timeout 60 "$bins" irecovery -f "$bundle/boot/DeviceTree.img3" >&2 || return $?; p5_run_timeout 60 "$bins" irecovery -c devicetree >&2 || return $?
-        p5_run_timeout 60 "$bins" irecovery -f "$bundle/boot/kernelcache.img3" >&2 || return $?; p5_run_timeout 60 "$bins" irecovery -c bootx >&2 || return $?
+        p5_run_timeout 60 "$bins" irecovery -f "$kernel" >&2 || return $?; p5_run_timeout 60 "$bins" irecovery -c bootx >&2 || return $?
     else printf '%s\n' "$commands" | jq -r '.[]|@sh' >&2; fi
-    jq -n --argjson commands "$commands" --arg execute "$execute" '{preview:($execute!="yes"),commands:$commands,nand_kernel_written:false}'
+    jq -n --argjson commands "$commands" --argjson dependency "$dependency" --arg execute "$execute" '{preview:($execute!="yes"),commands:$commands,nand_kernel_written:false,sensor_dependency:$dependency}'
 }

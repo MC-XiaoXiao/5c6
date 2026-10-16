@@ -1,0 +1,176 @@
+--- a/src/idevicerestore.c
++++ b/src/idevicerestore.c
+@@ -91,6 +91,7 @@
+ 	{ "ignore-errors",  no_argument,       NULL,  1  },
+ 	{ "variant",        required_argument, NULL,  2  },
+ 	{ "logfile",        required_argument, NULL,  3  },
++	{ "project5c-baseband", no_argument, NULL, 4 },
+ 	{ NULL, 0, NULL, 0 }
+ };
+ 
+@@ -141,6 +142,7 @@
+ 	"  -v, --version         Print version information\n" \
+ 	"\n" \
+ 	"Advanced/experimental options:\n"
++	"  --project5c-baseband  Enable native BasebandData in the 5c iOS 6 ramdisk\n"
+ 	"  -c, --custom          Restore with a custom firmware (requires bootrom exploit)\n" \
+ 	"  -s, --server URL      Override default signing server request URL\n" \
+ 	"  -x, --exclude         Exclude nor/baseband upgrade (legacy devices)\n" \
+@@ -1985,6 +1987,10 @@
+ 			ipsw_info = 1;
+ 			break;
+ 
++		case 4:
++			client->flags |= FLAG_PROJECT5C_BASEBAND;
++			break;
++
+ 		case 1:
+ 			client->flags |= FLAG_IGNORE_ERRORS;
+ 			break;
+--- a/src/idevicerestore.h
++++ b/src/idevicerestore.h
+@@ -47,6 +47,7 @@
+ #define FLAG_NO_RESTORE      (1 << 11)
+ #define FLAG_IGNORE_ERRORS   (1 << 12)
+ #define FLAG_KEEP_PERS       (1 << 13)
++#define FLAG_PROJECT5C_BASEBAND (1 << 14)
+ #define FLAG_IN_PROGRESS     (1 << 30)
+ 
+ #define RESTORE_VARIANT_ERASE_INSTALL      "Erase Install (IPSW)"
+--- a/src/restore.c
++++ b/src/restore.c
+@@ -969,6 +969,23 @@
+ 	plist_t node = plist_dict_get_item(message, "Accepted");
+ 	uint8_t accepted = 0;
+ 	plist_get_bool_val(node, &accepted);
++	if (client->flags & FLAG_PROJECT5C_BASEBAND) {
++		plist_t finished = plist_access_path(message, 2, "Output", "done");
++		if (!node || !PLIST_IS_BOOLEAN(node) || !accepted || !finished ||
++		    !PLIST_IS_BOOLEAN(finished) || !client->restore->p5_bb_requests) return -1;
++		char* path = NULL;
++		const char* prefix = getenv("PROJECT5C_BB_SAVE");
++		if (prefix && *prefix) {
++			char* xml = NULL; uint32_t n = 0;
++			if (asprintf(&path, "%s-%02u.status.plist", prefix, client->restore->p5_bb_requests) < 0) return -1;
++			plist_to_xml(message, &xml, &n);
++			int written = xml ? write_file(path, xml, n) : -1;
++			free(xml); free(path);
++			if (written < 0) return -1;
++		}
++		uint8_t completed = 0; plist_get_bool_val(finished, &completed);
++		client->restore->p5_bb_done = completed;
++	}
+ 
+ 	if (!accepted) {
+ 		logger(LL_ERROR, "device didn't accept BasebandData\n");
+@@ -2238,12 +2255,12 @@
+ }
+ 
+ #include "project5c-baseband-sign.c"
++#include "project5c-baseband-native.c"
+ 
+ static int restore_send_baseband_data(struct idevicerestore_client_t* client, plist_t message)
+ {
+ 	/* Fail before any modem TSS request or payload transfer on this custom path. */
+-	if (client && client->restore && (client->flags & FLAG_CUSTOM) && client->restore->protocol_version == 12 &&
+-	    client->device && (!strcmp(client->device->hardware_model, "n49ap") || !strcmp(client->device->hardware_model, "n48ap"))) {
++	if (p5_native_bb_target(client) && !p5_native_bb_active(client)) {
+ 		logger(LL_ERROR, "Baseband transfer is disabled for the 5c iOS 6 restore path\n");
+ 		return -1;
+ 	}
+@@ -2270,6 +2287,11 @@
+ 
+ 	// setup request data
+ 	plist_t arguments = plist_dict_get_item(message, "Arguments");
++	if (p5_native_bb_active(client) && (p5_native_bb_query(client, arguments) < 0 ||
++	    p5_native_bb_evidence(client, "query", arguments) < 0)) {
++		logger(LL_ERROR, "Invalid/changing Mav7 identity or nonce in native BasebandData\n");
++		return -1;
++	}
+ 	if (arguments && plist_get_node_type(arguments) == PLIST_DICT) {
+ 		plist_t bb_chip_id_node = plist_dict_get_item(arguments, "ChipID");
+ 		if (bb_chip_id_node && plist_get_node_type(bb_chip_id_node) == PLIST_UINT) {
+@@ -2278,6 +2300,7 @@
+ 		plist_t bb_cert_id_node = plist_dict_get_item(arguments, "CertID");
+ 		if (bb_cert_id_node && plist_get_node_type(bb_cert_id_node) == PLIST_UINT) {
+ 			plist_get_uint_val(bb_cert_id_node, &bb_cert_id);
++			if (p5_native_bb_active(client)) bb_cert_id = (uint32_t)bb_cert_id;
+ 		}
+ 		plist_t bb_snum_node = plist_dict_get_item(arguments, "ChipSerialNo");
+ 		if (bb_snum_node && plist_get_node_type(bb_snum_node) == PLIST_DATA) {
+@@ -2325,6 +2348,9 @@
+ 		}
+ 		logger(LL_INFO, "Sending Baseband TSS request...\n");
+ 		logger_dump_plist(LL_DEBUG, request, 0);
++		if (p5_native_bb_active(client) && p5_native_bb_evidence(client, "request", request) < 0) {
++			plist_free(request); plist_free(parameters); return -1;
++		}
+ 		response = tss_request_send(request, client->tss_url);
+ 		plist_free(request);
+ 		plist_free(parameters);
+@@ -2334,6 +2360,11 @@
+ 		}
+ 		logger(LL_INFO, "Received Baseband SHSH blobs\n");
+ 		logger_dump_plist(LL_DEBUG, response, 0);
++		if (p5_native_bb_active(client) && p5_native_bb_evidence(client, "response", response) < 0) goto leave;
+ 	}
++	if (p5_native_bb_active(client) && !response && client->restore->bbtss) {
++		logger(LL_INFO, "Reusing Baseband TSS for identical live query\n");
++		if (p5_native_bb_evidence(client, "response", client->restore->bbtss) < 0) goto leave;
++	}
+ 
+ 	// get baseband firmware file path from build identity
+@@ -2387,7 +2418,13 @@
+ 
+ 	/* Archive what the upstream BasebandData handler actually personalized. */
+ 	const char* saved = getenv("PROJECT5C_BB_SAVE");
+-	if (saved && saved[0]) {
++	if (saved && saved[0] && p5_native_bb_active(client)) {
++		char* path = NULL;
++		if (asprintf(&path, "%s-%02u.zip", saved, client->restore->p5_bb_requests) < 0) goto leave;
++		int written = write_file(path, buffer, sz);
++		free(path);
++		if (written < 0) goto leave;
++	} else if (saved && saved[0]) {
+ 		if (write_file(saved, buffer, sz) < 0) {
+ 			logger(LL_ERROR, "Could not save personalized baseband\n");
+ 			goto leave;
+@@ -5613,6 +5650,13 @@
+ 		plist_dict_set_item(opts, "FormatForLwVM", plist_new_bool(1));
+ 		plist_dict_remove_item(opts, "SystemImageFormat");
+ 	}
++	client->restore->p5_bb_query = NULL;
++	client->restore->p5_bb_requests = 0;
++	client->restore->p5_bb_done = 0;
++	if (p5_native_bb_options(client, opts) < 0) {
++		logger(LL_ERROR, "Native baseband requires the model-matched iOS 6 custom restore identity\n");
++		plist_free(opts); return -1;
++	}
+ 	// start the restore process
+ 	restore_error = restored_start_restore(restore, opts, client->restore->protocol_version);
+ 	if (restore_error != RESTORE_E_SUCCESS) {
+@@ -5818,6 +5862,12 @@
+ 	}
+ #endif
+ 
++	if (!err && (client->flags & FLAG_PROJECT5C_BASEBAND) &&
++	    (!client->restore->p5_bb_requests || !client->restore->p5_bb_done)) {
++		logger(LL_ERROR, "Restore ended without completed native baseband update\n");
++		err = -1;
++	}
++	plist_free(client->restore->p5_bb_query); client->restore->p5_bb_query = NULL;
+ 	restore_client_free(client);
+ 	return err;
+ }
+--- a/src/restore.h
++++ b/src/restore.h
+@@ -41,6 +41,9 @@
+ 	uint64_t protocol_version;
+ 	restored_client_t client;
+ 	plist_t build_identity;
++	plist_t p5_bb_query;
++	unsigned int p5_bb_requests;
++	int p5_bb_done;
+ };
+ 
+ int restore_check_mode(struct idevicerestore_client_t* client);

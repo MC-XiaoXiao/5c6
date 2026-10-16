@@ -214,13 +214,11 @@ static Blob wrap(Blob templ, Blob payload, int plaintext) {
   image_data(templ, &unused);
   Blob out = {alloc(templ.n + payload.n + 32), 20};
   memcpy(out.p, templ.p, 20);
-  int64_t delta = 0;
+  uint32_t signature_offset = 0;
   for (size_t p = 20; p < templ.n;) {
     size_t full = le32(templ.p + p + 4);
     uint32_t tag = le32(templ.p + p);
     if (plaintext && tag == 0x4b424147) {
-      if (le32(templ.p + 12) && p < 20 + le32(templ.p + 12))
-        delta -= full;
       p += full;
       continue;
     }
@@ -231,8 +229,9 @@ static Blob wrap(Blob templ, Blob payload, int plaintext) {
       putle(out.p + out.n + 8, payload.n);
       memcpy(out.p + out.n + 12, payload.p, payload.n);
       out.n += 12 + padded;
-      delta += (int64_t)(12 + padded) - (int64_t)full;
     } else {
+      if (tag == 0x53485348)
+        signature_offset = (uint32_t)(out.n - 20);
       memcpy(out.p + out.n, templ.p + p, full);
       out.n += full;
     }
@@ -240,11 +239,7 @@ static Blob wrap(Blob templ, Blob payload, int plaintext) {
   }
   putle(out.p + 4, out.n);
   putle(out.p + 8, out.n - 20);
-  if (le32(templ.p + 12)) {
-    need((int64_t)le32(templ.p + 12) + delta >= 0,
-         "Invalid IMG3 signature offset");
-    putle(out.p + 12, le32(templ.p + 12) + delta);
-  }
+  putle(out.p + 12, signature_offset);
   image_data(out, &unused);
   return out;
 }
@@ -746,7 +741,7 @@ int main(int argc, char **argv) {
     puts("project5c-native 1");
   } else if (plist_main(argc, argv) || zip_main(argc, argv) ||
              mux_main(argc, argv) || archive_main(argc, argv) ||
-             process_main(argc, argv)) {
+             process_main(argc, argv) || macho_main(argc, argv)) {
   } else
     die("Unknown operation: %s", cmd);
   return 0;

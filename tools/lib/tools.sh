@@ -22,8 +22,23 @@ p5_check_host_tools() {
     if [ "$scope" = restore ]; then
         p5_require_tools "$out" hfsplus xpwntool iBoot32Patcher dmg idevicerestore
         version=$(p5_run_timeout 15 "$out" idevicerestore --version) || return $?
-        [[ "$version" = *native6-5c-no-baseband* ]] || { p5_fail 'Use the patched restore host that disables baseband transfer'; return 2; }
+        [[ "$version" = *native6-5c-no-baseband* || "$version" = *native6-5c-bb-native-v[12]* ]] || { p5_fail 'Use a Project5C patched restore host'; return 2; }
     fi
+}
+p5_upgrade_restore_host() {
+    local out=$1 version='' build row
+    if [ -x "$out/idevicerestore" ]; then version=$(p5_run_timeout 15 "$out" idevicerestore --version) || return $?; fi
+    [[ "$version" != *native6-5c-bb-native-v2* ]] || return 0
+    row=$(jq -c '.sources.idevicerestore' "$P5_ROOT/tools/locks/third-party-tools.json") || return $?
+    p5_fetch_locked "$row" "$out/sources/idevicerestore.tar.gz" || return $?
+    mkdir -p "$out/build" || return $?
+    build=$(mktemp -d "$out/build/native-baseband-host.XXXXXX") || return $?
+    bash "$P5_ROOT/patches/host/build_restore_host.sh" --source-archive "$out/sources/idevicerestore.tar.gz" --out "$build/host" || return $?
+    [ ! -f "$out/idevicerestore" ] || cp -p -- "$out/idevicerestore" "$build/previous-idevicerestore" || return $?
+    cp -- "$build/host/src/idevicerestore" "$out/idevicerestore.tmp.$$" || return $?
+    chmod 755 "$out/idevicerestore.tmp.$$" || return $?
+    mv -f -- "$out/idevicerestore.tmp.$$" "$out/idevicerestore" || return $?
+    p5_log "Installed native BasebandData host; previous binary/build retained in $build"
 }
 p5_build_custom() {
     local out=$1 lock=$2 name row work="$1/build"
@@ -49,6 +64,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     COMMAND=${1:-help}; [ "$#" -eq 0 ] || shift; p5_args "$@"
     OUT=$(p5_abs "$(p5_get out "$P5_TOOLS")"); SCOPE=$(p5_get scope restore)
     case "$COMMAND" in
+        restore-host) p5_upgrade_restore_host "$OUT" ;;
         check) p5_check_host_tools "$OUT" "$SCOPE" ;;
         setup|fetch|detection)
             PLATFORM=$(p5_get platform "$(if [ "$(uname -s)" = Darwin ]; then printf macos; else printf linux; fi)"); ARCH=$(p5_get arch "$P5_ARCH")

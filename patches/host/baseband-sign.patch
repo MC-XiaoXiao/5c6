@@ -1,0 +1,31 @@
+--- a/src/idevicerestore.c
++++ b/src/idevicerestore.c
+@@ -1790,6 +1790,8 @@
+ 	cprintf(COLOR_RESET);
+ }
+ 
++extern int project5c_baseband_sign(int argc, char **argv);
++
+ int main(int argc, char* argv[])
+ {
+ 	int opt = 0;
+@@ -1800,6 +1802,8 @@
+ 	const char* logfile = NULL;
+ 
+ 	logger_set_print_func(tty_print);
++	if (argc > 1 && !strcmp(argv[1], "--baseband-sign"))
++		return project5c_baseband_sign(argc, argv);
+ 
+ 	struct idevicerestore_client_t* client = idevicerestore_client_new();
+ 	if (client == NULL) {
+--- a/src/restore.c
++++ b/src/restore.c
+@@ -2237,6 +2237,8 @@
+ 	return res;
+ }
+ 
++#include "project5c-baseband-sign.c"
++
+ static int restore_send_baseband_data(struct idevicerestore_client_t* client, plist_t message)
+ {
+ 	/* Fail before any modem TSS request or payload transfer on this custom path. */

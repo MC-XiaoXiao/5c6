@@ -98,7 +98,7 @@ p5_query_parameters() {
       |{BbChipID:(.ChipID//.BasebandChipID),BbSNUM:(.ChipSerialNo//.BasebandSerialNumber),BbGoldCertId:(.CertID//.BasebandCertId),BbNonce:(.Nonce//.BasebandNonce)}
       |select(.BbChipID==7282913 and (.BbSNUM["$data"]|type)=="string" and (.BbSNUM["$data"]|length)==8 and (.BbGoldCertId|type)=="number")
       |.BbGoldCertId=(.BbGoldCertId%4294967296+4294967296)%4294967296
-      |if .BbNonce==null then del(.BbNonce) else select((.BbNonce["$data"]|type)=="string" and (.BbNonce["$data"]|length)==40) end' || { p5_fail 'Incomplete model/ECID-bound Mav7 query'; return 2; }
+      |if .BbNonce==null then del(.BbNonce) else select((.BbNonce["$data"]|type)=="string" and (.BbNonce["$data"]|length)==40 and .BbNonce["$data"]!=("00"*20)) end' || { p5_fail 'Incomplete model/ECID-bound Mav7 query'; return 2; }
 }
 p5_normal_query() {
     local model=$1 ecid=$2 bins=$3 udid query devices

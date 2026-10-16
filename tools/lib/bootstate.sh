@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/patchctl.sh"
+source "$P5_LIB/restore-kernel.sh"
 COMMAND=${1:-help}; [ "$#" -eq 0 ] || shift; p5_args "$@"
 case "$COMMAND" in help|--help) printf 'Usage: bootstate.sh check|record|resolve --state DIR --model MODEL --ecid ECID [--work DIR]\n'; exit 0 ;; check|record|resolve) ;; *) exit 2 ;; esac
 p5_required state model ecid
@@ -21,7 +22,12 @@ if [ "$COMMAND" != resolve ] || [ "$SAVED" != null ]; then
     for KEY in kernel devicetree; do
         FILE=kernelcache.img3; [ "$KEY" != devicetree ] || FILE=DeviceTree.img3
         REL=$(printf '%s' "$COMPONENTS"|jq -r --arg key "$KEY" '.[$key]')
-        [ "$(p5_sha "$WORK/bundle/boot/$FILE")" = "$(jq -r --arg rel "$REL" '.integrity_receipts[$rel]' "$WORK/session/restore.json")" ] || { p5_fail "Restored $KEY differs from boot bundle"; exit 2; }
+        MATCH_FILE="$WORK/bundle/boot/$FILE"
+        if [ "$KEY" = kernel ] && jq -e '.restore_sensor_dependency!=null' "$WORK/session/restore.json" >/dev/null; then
+            p5_temp; MATCH_FILE="$P5_TMP/bootstate-kernel.img3"
+            p5_restore_sensor_kernel "$WORK/bundle/boot/$FILE" "$MATCH_FILE" >/dev/null || exit $?
+        fi
+        [ "$(p5_sha "$MATCH_FILE")" = "$(jq -r --arg rel "$REL" '.integrity_receipts[$rel]' "$WORK/session/restore.json")" ] || { p5_fail "Restored $KEY differs from boot bundle"; exit 2; }
     done
 fi
 HASHES='{}'; for FILE in iBSS.dfu iBEC.dfu DeviceTree.img3 kernelcache.img3; do HASHES=$(printf '%s' "$HASHES"|jq --arg file "$FILE" --arg sha "$(p5_sha "$WORK/bundle/boot/$FILE")" '.[$file]=$sha'); done

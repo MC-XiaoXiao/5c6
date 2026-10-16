@@ -69,7 +69,7 @@ p5_args() {
             --) shift; while [ "$#" -gt 0 ]; do ARGS+=("$1"); shift; done; break ;;
             --*=*) local key=${1%%=*} value=${1#*=}; key=${key#--}; shift ;;
             --*) local key=${1#--} value
-                 case "$key" in json|execute|erase|native-source|identity-only|policy-only|record|retry-incomplete|directory|baseband|help|boot-only) value=yes; shift ;;
+                 case "$key" in json|execute|erase|native-source|identity-only|policy-only|record|retry-incomplete|directory|baseband|help|boot-only|restore-debug) value=yes; shift ;;
                      *) [ "$#" -ge 2 ] || { p5_fail "Missing value: $1"; return 2; }; value=$2; shift 2 ;; esac ;;
             *) ARGS+=("$1"); shift; continue ;;
         esac

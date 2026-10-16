@@ -14,8 +14,12 @@ elif [ -n "$(p5_get source)" ]; then
     git -C "$(p5_get source)" archive "$REVISION" > "$P5_TMP/source.tar"
     mkdir -p "$OUT"; bsdtar -xf "$P5_TMP/source.tar" -C "$OUT" --no-same-owner
 else p5_fail 'Specify --source or --source-archive'; exit 2; fi
-printf '1.0.0-native6-5c-no-baseband\n' > "$OUT/.tarball-version"
+printf '1.0.0-native6-5c-bb-native-v2\n' > "$OUT/.tarball-version"
 (cd -- "$OUT"; git apply --check "$P5_ROOT/patches/host/restore-host.patch"; git apply "$P5_ROOT/patches/host/restore-host.patch")
+cp -- "$P5_ROOT/patches/host/baseband-sign.c" "$OUT/src/project5c-baseband-sign.c"
+(cd -- "$OUT"; git apply --check "$P5_ROOT/patches/host/baseband-sign.patch"; git apply "$P5_ROOT/patches/host/baseband-sign.patch")
+cp -- "$P5_ROOT/patches/host/baseband-native.c" "$OUT/src/project5c-baseband-native.c"
+(cd -- "$OUT"; git apply --check "$P5_ROOT/patches/host/baseband-native.patch"; git apply "$P5_ROOT/patches/host/baseband-native.patch")
 (
     p5_build_env
     cd -- "$OUT"

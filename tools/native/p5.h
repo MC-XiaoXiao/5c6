@@ -38,4 +38,5 @@ int zip_main(int argc, char **argv);
 int mux_main(int argc, char **argv);
 int archive_main(int argc, char **argv);
 int process_main(int argc, char **argv);
+int macho_main(int argc, char **argv);
 #endif

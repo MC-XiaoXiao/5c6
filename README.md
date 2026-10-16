@@ -4,7 +4,7 @@ A DEMO for running **iOS 6.1.3 / 6.1.4 on the iPhone 5c**. It takes an original 
 
 Hacktivation and jailbreak (Cydia / Substrate) are enabled by default. You can turn them off when building the firmware.
 
-**A computer is required to boot after every restart or power-off.** Enter DFU and use this tool to boot again. Flashing erases your data, so back up first. Baseband flashing is currently disabled.
+**A computer is required to boot after every restart or power-off.** Enter DFU and use this tool to boot again. Flashing erases your data, so back up first. Baseband updating is enabled by default inside the complete restore flow; use `--no-baseband` to disable it.
 
 ## Supported devices and hardware
 
@@ -21,7 +21,7 @@ Hacktivation and jailbreak (Cydia / Substrate) are enabled by default. You can t
 | Speaker | Playback tested |
 | Microphone | Captured nonzero audio and responses to test tones; speech and individual microphones still need testing |
 | Earpiece | Playback routing tested; audible output still needs confirmation |
-| Baseband / SIM | Not yet fully working in testing. Runtime patches and resource downloads are disabled by default; baseband flashing is disabled |
+| Baseband / SIM | Enabled by default; complete OS restore, native baseband update and version 7.60.00 verified on N49; network service remains unverified |
 | GPS | Not enabled by default. Optional patch can track satellites and output NMEA; no valid position fix yet |
 | Cameras, flash and sensors | Compatibility patches included; individual features still need testing |
 
@@ -64,6 +64,9 @@ Common commands:
 
 # Flash prepared firmware (use the same version and build options; erases data)
 ./tool.sh flash --version 6.1.3 --execute --erase
+
+# Restore only the OS, with baseband support disabled (use a separate workspace)
+./tool.sh flash --version 6.1.4 --no-baseband --execute --erase
 
 # Boot after entering DFU
 ./tool.sh boot --execute
