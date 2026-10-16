@@ -32,13 +32,13 @@ COUNT=0; for PATH_VALUE in "$INPUTS" "$BUNDLE" "$SESSION"; do [ -z "$PATH_VALUE"
 if [ -n "$INPUTS" ]; then METADATA=$(p5_plist "$INPUTS/SystemVersion.plist");
 elif [ -n "$BUNDLE" ]; then
     METADATA=$(jq .target "$BUNDLE/build.json")
-    jq -e --arg jailbreak "$JAILBREAK" --argjson selected "$SELECTED" --arg model "$MODEL" --arg board "$BOARD" '.kernel_layout==6 and ([.files[].id]|sort)==($selected|sort) and .target.ProductType==$model and .target.HardwareModel==$board and ((.jailbreak_kernel.enabled//false)==($jailbreak=="yes")) and ($jailbreak!="yes" or .jailbreak_kernel.revision==1)' "$BUNDLE/build.json" >/dev/null || { p5_fail 'Bundle layout or selection differs; rebuild in a new --work directory'; exit 2; }
+    jq -e --arg jailbreak "$JAILBREAK" --argjson selected "$SELECTED" --arg model "$MODEL" --arg board "$BOARD" '.kernel_layout==7 and ([.files[].id]|sort)==($selected|sort) and .target.ProductType==$model and .target.HardwareModel==$board and ((.jailbreak_kernel.enabled//false)==($jailbreak=="yes")) and ($jailbreak!="yes" or .jailbreak_kernel.revision==1)' "$BUNDLE/build.json" >/dev/null || { p5_fail 'Bundle layout or selection differs; rebuild bundle/session in this workspace or choose --work'; exit 2; }
 else
     METADATA=$(jq .source_version "$SESSION/restore.json")
     jq -e --arg board "$BOARD" --arg activation "$ACTIVATION" --arg jailbreak "$JAILBREAK" --argjson selected "$SELECTED" --argjson wanted "$RECEIPT" '
-      .kernel_layout==6 and .target==$board and ((.activation!=null)==($activation=="hacktivate")) and ((.jailbreak!=null)==($jailbreak=="yes")) and ($jailbreak!="yes" or (.jailbreak.kernel.revision==1 and .jailbreak.kernel.enabled==true)) and ((.selected_artifacts|sort)==($selected|sort))
+      .kernel_layout==7 and .target==$board and ((.activation!=null)==($activation=="hacktivate")) and ((.jailbreak!=null)==($jailbreak=="yes")) and ($jailbreak!="yes" or (.jailbreak.kernel.revision==1 and .jailbreak.kernel.enabled==true)) and ((.selected_artifacts|sort)==($selected|sort))
       and (. as $r|all($wanted|to_entries[]|select(.key|IN("wifi_firmware_sha256","baseband_firmware_sha256","baseband_ecid","baseband_source_sha256"));$r[.key]==.value))
-      and ((.wifi_firmware_files//[]|sort)==($wanted.wifi_firmware_sha256//{}|keys|sort))' "$SESSION/restore.json" >/dev/null || { p5_fail 'Restore session kernel layout or selection differs; rebuild in a new --work directory'; exit 2; }
+      and ((.wifi_firmware_files//[]|sort)==($wanted.wifi_firmware_sha256//{}|keys|sort))' "$SESSION/restore.json" >/dev/null || { p5_fail 'Restore session kernel layout or selection differs; rebuild bundle/session in this workspace or choose --work'; exit 2; }
 fi
 [ "$(printf '%s' "$METADATA"|jq -r .ProductVersion)" = "$VERSION" ] || { p5_fail 'Firmware version differs from selection'; exit 2; }
 p5_log "Firmware identity checked: $MODEL / $VERSION"

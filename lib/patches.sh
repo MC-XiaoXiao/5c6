@@ -183,7 +183,7 @@ p5_build() {
     while IFS= read -r id; do p5_build_one "$id"; done < <(printf '%s' "$P5_ACTIVE"|jq -r '.[]')
     target=$(p5_target "$model" | jq 'del(.board_id)')
     if [ -f "$P5_INPUTS/SystemVersion.plist" ]; then target=$(jq -n --argjson target "$target" --argjson version "$(p5_plist "$P5_INPUTS/SystemVersion.plist")" '$target+($version|{ProductVersion,ProductBuildVersion})'); fi
-    jq -n --arg jailbreak "$jailbreak" --argjson active "$P5_ACTIVE" --argjson target "$target" --arg profile "$profile" --arg extras "$extras" --argjson source "$P5_SOURCE" --slurpfile receipts "$P5_STAGE/receipts.json" '{schema:1,kernel_layout:6,jailbreak_kernel:{enabled:($jailbreak=="yes"),revision:1},profile:$profile,extras:($extras|split(",")|map(select(length>0))),selected:$active,target:$target,files:[],input_receipts:$receipts[0],source_firmware:$source}' > "$P5_STAGE/bundle/build.json"
+    jq -n --arg jailbreak "$jailbreak" --argjson active "$P5_ACTIVE" --argjson target "$target" --arg profile "$profile" --arg extras "$extras" --argjson source "$P5_SOURCE" --slurpfile receipts "$P5_STAGE/receipts.json" '{schema:1,kernel_layout:7,jailbreak_kernel:{enabled:($jailbreak=="yes"),revision:1},profile:$profile,extras:($extras|split(",")|map(select(length>0))),selected:$active,target:$target,files:[],input_receipts:$receipts[0],source_firmware:$source}' > "$P5_STAGE/bundle/build.json"
     while IFS= read -r id; do
         local spec; spec=$(p5_spec "$id" "$model"); path=$(printf '%s' "$spec"|jq -r .destination); mode=$(printf '%s' "$spec"|jq -r .mode)
         local output; output=$(p5_relative "$P5_STAGE/bundle" "$path"); mkdir -p "$(dirname -- "$output")"; cp -- "$P5_STAGE/cache/$id" "$output"; printf -v mode '%o' "$mode"; chmod "$mode" "$output"

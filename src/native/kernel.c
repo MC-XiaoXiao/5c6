@@ -481,6 +481,14 @@ static void build_cache(char **argv) {
         die("Missing kext dependency: %s", dep);
       need(plist_get_node_type(version) == PLIST_STRING,
            "Invalid dependency version");
+      /* XNU assigns -1 when a kext has no compatible version. A bundle
+       * version alone does not make an executable usable as a library. */
+      plist_t library = row_for(rows, dep, NULL),
+              compatible = plist_dict_get_item(library, "OSBundleCompatibleVersion");
+      char *minimum = pstr(compatible);
+      if (!compatible || plist_get_node_type(compatible) != PLIST_STRING || !*minimum)
+        die("Dependency lacks OSBundleCompatibleVersion: %s", dep);
+      free(minimum);
       free(dep);
     }
     free(it);

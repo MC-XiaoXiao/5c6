@@ -54,7 +54,7 @@ p5_restore_prepare() {
     wifi_dir=$(p5_get wifi-firmware-dir); bb=$(p5_get baseband-firmware); native=$(p5_get baseband-source); ecid=$(p5_get baseband-ecid)
     p5_require_tools "$bins" hfsplus xpwntool iBoot32Patcher; source=$(p5_get dmg-tool "$bins/dmg"); [ -x "$source" ] || { p5_fail 'Missing DMG builder'; return 2; }
     report=$(p5_verify_bundle "$bundle"); target=$(printf '%s' "$report"|jq .target); model=$(printf '%s' "$target"|jq -r .ProductType); board=$(printf '%s' "$target"|jq -r '.HardwareModel|ascii_downcase'); short=${board:0:3}; components=$(p5_components "$model"); all_flash=$(printf '%s' "$components"|jq -r '.devicetree|split("/")|.[0:-1]|join("/")')
-    printf '%s' "$report"|jq -e '.kernel_layout==6' >/dev/null || { p5_fail 'Rebuild bundle with kext-owned adapters and offline VirtualAudio/H4ISP media patches'; return 2; }
+    printf '%s' "$report"|jq -e '.kernel_layout==7' >/dev/null || { p5_fail 'Rebuild bundle with the BMA library declaration required by the gyro dependency'; return 2; }
     printf '%s' "$report"|jq -e --arg policy "$(p5_get jailbreak yes)" '(.jailbreak_kernel.enabled//false)==($policy=="yes") and ($policy!="yes" or .jailbreak_kernel.revision==1)' >/dev/null || { p5_fail 'Rebuild bundle with matching --jailbreak policy (iOS 6 kernel patch revision 1)'; return 2; }
     if printf '%s' "$report"|jq -e '.files|any(.id=="kernel-wifi")' >/dev/null; then
         [ -n "$wifi_dir" ] || { p5_fail 'Candidate kernel requires matching Wi-Fi donor firmware'; return 2; }
