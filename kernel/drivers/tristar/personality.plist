@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>AppleTriStarBuiltIn</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleTriStarBuiltIn</string>
+			<key>IONameMatch</key>
+			<array>
+				<string>tristar,ths7383</string>
+				<string>tristar,cbtl1608</string>
+				<string>tristar,cbtl1610</string>
+			</array>
+			<key>IOProviderClass</key>
+			<string>AppleARMIICDevice</string>
+		</dict>
+	</dict>
+</plist>

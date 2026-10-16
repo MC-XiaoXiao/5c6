@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Address</key>
+	<integer>2161434624</integer>
+	<key>KmodOffset</key>
+	<integer>6272</integer>
+	<key>BundlePath</key>
+	<string>/System/Library/Extensions/AppleChestnutDisplayPMU.kext</string>
+	<key>Executable</key>
+	<string>AppleChestnutDisplayPMU</string>
+</dict>
+</plist>

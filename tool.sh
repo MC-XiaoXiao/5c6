@@ -2,11 +2,11 @@
 # Device-driven restore and tethered boot. Compatible with macOS Bash 3.2.
 set -euo pipefail
 ROOT=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-LIB="$ROOT/tools/lib"
+LIB="$ROOT/lib"
 VERSION=6.1.3
 ACTIVATION=hacktivate
 JAILBREAK=yes
-PROFILE=native6-wifi-candidate
+PROFILE=wifi
 EXTRAS=
 WIFI_FIRMWARE_DIR=
 BASEBAND_FIRMWARE=
@@ -19,9 +19,9 @@ BOOT_WORK=
 HOST_ARCH=$(uname -m)
 if [ "$HOST_ARCH" = aarch64 ]; then HOST_ARCH=arm64; fi
 if [ "$(uname -s)" = Darwin ]; then
-    HOST_TOOLS="$ROOT/tools/bin/macos"
+    HOST_TOOLS="$ROOT/bin/macos"
 else
-    HOST_TOOLS="$ROOT/tools/bin/linux/$HOST_ARCH"
+    HOST_TOOLS="$ROOT/bin/linux/$HOST_ARCH"
 fi
 EXECUTE=no
 ERASE=no
@@ -42,14 +42,14 @@ Usage: ./tool.sh [menu|prepare|flash|boot] [options]
   --version 6.1.3|6.1.4        Prepare/flash; default: 6.1.3 (613/614 also accepted)
   --activation hacktivate|none Default: hacktivate
   --jailbreak yes|no          Default: yes
-  --profile NAME              native6-wifi-candidate (default, both models) or native6-validated
+  --profile wifi|base         Default: wifi (both models)
   --extras gps,baseband        Additional runtime patches; baseband enabled by default
   --wifi-firmware-dir PATH     Model-matched 43342a0 donor directory; packaged files used by default
   --baseband-firmware PATH     Optional personalized Mav7 ZIP override
   --baseband-query PATH        Optional device-bound query plist for offline parameter input
   --baseband                   Restore OS and baseband together (default)
   --no-baseband                Disable baseband updating, CommCenter patches and modem resources
-  --work PATH                 Original inputs and generated bundle/session
+  --work PATH                 Original inputs and generated bundle/session (default: runtime/firmware/VERSION)
   --tools-dir PATH            Native host tools, including device detection
   --source-ipsw PATH          iPhone 5 iOS 6.1.3 / 6.1.4 source IPSW
   --download                  Download and verify the source IPSW from Apple
@@ -98,7 +98,7 @@ validate() {
     case "$VERSION" in 613) VERSION=6.1.3 ;; 614) VERSION=6.1.4 ;; 6.1.3|6.1.4) ;; *) fail 'Only iOS 6.1.3 and 6.1.4 are supported'; return 2 ;; esac
     case "$ACTIVATION" in hacktivate|none) ;; *) fail 'Activation must be hacktivate or none'; return 2 ;; esac
     case "$JAILBREAK" in yes|no) ;; *) fail 'Jailbreak must be yes or no'; return 2 ;; esac
-    case "$PROFILE" in native6-validated|native6-wifi-candidate) ;; *) fail 'Unknown patch profile'; return 2 ;; esac
+    PROFILE=$(source "$LIB/patches.sh"; p5_profile "$PROFILE") || return $?
     if [ "$BASEBAND_DISABLED" = yes ]; then
         if [ -n "$BASEBAND_FIRMWARE" ] || [ -n "$BASEBAND_QUERY" ]; then
             fail '--no-baseband conflicts with baseband firmware/query inputs'; return 2
@@ -107,9 +107,9 @@ validate() {
     else
         case ",$EXTRAS," in *,baseband,*) ;; *) EXTRAS=${EXTRAS:+$EXTRAS,}baseband ;; esac
     fi
-    EXTRAS=$(bash "$LIB/selection.sh" --normalize-extras "$EXTRAS") || return $?
-    if [ "$PROFILE" = native6-validated ] && [ -n "$WIFI_FIRMWARE_DIR" ]; then
-        fail '--wifi-firmware-dir requires --profile native6-wifi-candidate'; return 2
+    EXTRAS=$(bash "$LIB/options.sh" --normalize-extras "$EXTRAS") || return $?
+    if [ "$PROFILE" = base ] && [ -n "$WIFI_FIRMWARE_DIR" ]; then
+        fail '--wifi-firmware-dir requires --profile wifi'; return 2
     fi
 }
 detect_device() {
@@ -128,7 +128,7 @@ check_version() {
     if [ -n "$WIFI_FIRMWARE_DIR" ]; then args+=(--wifi-firmware-dir "$WIFI_FIRMWARE_DIR"); fi
     if [ -n "$BASEBAND_FIRMWARE" ]; then args+=(--baseband-firmware "$BASEBAND_FIRMWARE"); fi
     if [ -n "$BASEBAND_SOURCE" ]; then args+=(--baseband-source "$BASEBAND_SOURCE"); fi
-    bash "$LIB/selection.sh" ${args[@]+"${args[@]}"} "$@" >/dev/null
+    bash "$LIB/options.sh" ${args[@]+"${args[@]}"} "$@" >/dev/null
 }
 ensure_tools() {
     progress "Check restore host tools: $HOST_TOOLS"
@@ -141,10 +141,10 @@ ensure_tools() {
         if [ ! -x "$HOST_TOOLS/$name" ]; then missing=yes; fi
     done
     if [ "$missing" = yes ]; then
-        bash "$LIB/tools.sh" setup --out "$HOST_TOOLS" || return $?
+        bash "$LIB/setup.sh" setup --out "$HOST_TOOLS" || return $?
     fi
-    bash "$LIB/tools.sh" check --out "$HOST_TOOLS" --scope restore >/dev/null || return $?
-    if [ "$BASEBAND_DISABLED" = no ]; then bash "$LIB/tools.sh" restore-host --out "$HOST_TOOLS" || return $?; fi
+    bash "$LIB/setup.sh" check --out "$HOST_TOOLS" --scope restore >/dev/null || return $?
+    if [ "$BASEBAND_DISABLED" = no ]; then bash "$LIB/setup.sh" restore-host --out "$HOST_TOOLS" || return $?; fi
 }
 build_bundle() {
     check_version --inputs "$WORK/inputs" --identity-only || return $?
@@ -152,15 +152,11 @@ build_bundle() {
     if [ -n "$DONOR_INPUTS" ]; then build_args+=(--donor-inputs "$DONOR_INPUTS"); fi
     if [ -n "$KEYS" ]; then build_args+=(--keys "$KEYS");
     elif [ -f "$WORK/firmware/keys.json" ]; then build_args+=(--keys "$WORK/firmware/keys.json"); fi
-    bash "$LIB/patchctl.sh" build ${build_args[@]+"${build_args[@]}"} || return $?
+    bash "$LIB/patches.sh" build ${build_args[@]+"${build_args[@]}"} || return $?
 }
 resolve_work() {
     if [ "$WORK_EXPLICIT" = no ]; then
-        WORK="$ROOT/runtime/firmware/$MODEL/$VERSION-$ACTIVATION-$JAILBREAK"
-        if [ "$PROFILE" != native6-validated ]; then WORK="$WORK-$PROFILE"; fi
-        if [ -n "$EXTRAS" ]; then WORK="$WORK-${EXTRAS//,/-}"; fi
-        if [ "$BASEBAND_DISABLED" = no ]; then WORK="$WORK-native-baseband-v4-$ECID"; fi
-        if [ "$JAILBREAK" = yes ]; then WORK="$WORK-jb1"; fi
+        WORK="$ROOT/runtime/firmware/$VERSION"
     fi
 }
 prepare_firmware() {
@@ -173,8 +169,8 @@ prepare_firmware() {
     progress "Prepare firmware: $MODEL / iOS $VERSION | profile: $PROFILE | extras: ${EXTRAS:-none}"
     progress "Workspace: $WORK"
     if [ -f "$WORK/session/restore.json" ]; then progress "Reuse existing session after identity and integrity checks"; fi
-    if [ "$PROFILE" = native6-wifi-candidate ] && [ -z "$WIFI_FIRMWARE_DIR" ]; then
-        WIFI_FIRMWARE_DIR="$ROOT/donor/$MODEL/wifi/43342a0"
+    if [ "$PROFILE" = wifi ] && [ -z "$WIFI_FIRMWARE_DIR" ]; then
+        WIFI_FIRMWARE_DIR="$ROOT/resources/$([ "$MODEL" = iPhone5,3 ] && printf n48 || printf n49)/wifi/43342a0"
     fi
     if [ "$MODEL" = iPhone5,3 ]; then
         case ",$EXTRAS," in *,gps,*) fail 'GPS runtime currently requires iPhone5,4 / N49'; return 2 ;; esac
@@ -198,16 +194,13 @@ prepare_firmware() {
             ensure_tools || return $?
             local extract_args=(--source-ipsw "$SOURCE_IPSW" --tools-dir "$HOST_TOOLS" --work "$WORK" --model "$MODEL" --version "$VERSION")
             if [ -n "$KEYS" ]; then extract_args+=(--keys "$KEYS"); fi
-            bash "$LIB/inputs.sh" ${extract_args[@]+"${extract_args[@]}"} || return $?
+            bash "$LIB/extract.sh" ${extract_args[@]+"${extract_args[@]}"} || return $?
         fi
         if [ -f "$WORK/firmware/source-rootfs.hfs" ]; then
             ROOTFS="$WORK/firmware/source-rootfs.hfs"
             RAMDISK="$WORK/firmware/restore-ramdisk.hfs"
             TEMPLATE="$WORK/firmware/restore-ramdisk.img3"
             IBEC="$WORK/firmware/donor-ibec.bin"
-            if [ "$MODEL" = iPhone5,3 ] && [ -d "$WORK/firmware/n48-inputs" ]; then
-                DONOR_INPUTS="$WORK/firmware/n48-inputs"
-            fi
         fi
         [ -n "$ROOTFS" ] && [ -n "$RAMDISK" ] && [ -n "$TEMPLATE" ] && [ -n "$IBEC" ] || { fail 'Supply the original restore image inputs; see --help'; return 2; }
         ensure_tools || return $?
@@ -225,21 +218,16 @@ prepare_firmware() {
             bb_args=(--model "$MODEL" --ecid "$ECID" --mode "$MODE" --bundle "$WORK/bundle" --tools-dir "$HOST_TOOLS" --out "$WORK/baseband-source" --cache "$ROOT/runtime/downloads/baseband" --native-source)
             BASEBAND_SOURCE=$(bash "$LIB/baseband.sh" ${bb_args[@]+"${bb_args[@]}"}) || return $?
         fi
-        check_version --policy-only || return $?
         check_version --bundle "$WORK/bundle" || return $?
-        bash "$LIB/patchctl.sh" verify --bundle "$WORK/bundle" >/dev/null || return $?
         local restore_args=(prepare --retry-incomplete --activation "$ACTIVATION" --jailbreak "$JAILBREAK" --bundle "$WORK/bundle" --rootfs-hfs "$ROOTFS" --ramdisk-hfs "$RAMDISK" --ramdisk-template "$TEMPLATE" --ibec-raw "$IBEC" --out "$WORK/session" --tools-dir "$HOST_TOOLS" --dmg-tool "$HOST_TOOLS/dmg")
         if [ -n "$WIFI_FIRMWARE_DIR" ]; then restore_args+=(--wifi-firmware-dir "$WIFI_FIRMWARE_DIR"); fi
         if [ -n "$BASEBAND_FIRMWARE" ]; then restore_args+=(--baseband-firmware "$BASEBAND_FIRMWARE" --baseband-ecid "$ECID"); fi
         if [ -n "$BASEBAND_SOURCE" ]; then restore_args+=(--baseband-source "$BASEBAND_SOURCE" --baseband-ecid "$ECID"); fi
-        bash "$LIB/restore6.sh" ${restore_args[@]+"${restore_args[@]}"} || return $?
-        check_version --session "$WORK/session" --record || return $?
+        bash "$LIB/restore.sh" ${restore_args[@]+"${restore_args[@]}"} || return $?
     fi
-    progress "Verify session, selected patches and device boot record"
+    progress "Check selected firmware and device boot record"
     check_version --session "$WORK/session" || return $?
-    check_version --bundle "$WORK/bundle" || return $?
-    bash "$LIB/restore6.sh" verify --session "$WORK/session" >/dev/null || return $?
-    bash "$LIB/bootstate.sh" check --state "$ROOT/runtime/devices" --work "$WORK" --model "$MODEL" --ecid "$ECID" >/dev/null || return $?
+    bash "$LIB/boot.sh" check --state "$ROOT/runtime/devices" --work "$WORK" --model "$MODEL" --ecid "$ECID" >/dev/null || return $?
     printf 'Firmware identity checked: %s / %s\n' "$MODEL" "$VERSION"
     printf '\nFirmware ready: %s/session\nModel: %s | iOS: %s | Activation: %s | Jailbreak: %s\n' "$WORK" "$MODEL" "$VERSION" "$ACTIVATION" "$JAILBREAK"
     printf 'Patch profile: %s | Runtime extras: %s\n' "$PROFILE" "${EXTRAS:-none}"
@@ -252,9 +240,9 @@ flash_device() {
     local args=(--session "$WORK/session" --ecid "$ECID" --tools-dir "$HOST_TOOLS" --idevicerestore "$HOST_TOOLS/idevicerestore")
     if [ "$EXECUTE" = yes ]; then args+=(--execute --erase); fi
     # The install backend boots the restore ramdisk, waits for restored, and flashes.
-    bash "$LIB/restore6.sh" install ${args[@]+"${args[@]}"} || return $?
+    bash "$LIB/restore.sh" install ${args[@]+"${args[@]}"} || return $?
     if [ "$EXECUTE" = yes ]; then
-        bash "$LIB/bootstate.sh" record --state "$ROOT/runtime/devices" --work "$WORK" --model "$MODEL" --ecid "$ECID" || return $?
+        bash "$LIB/boot.sh" record --state "$ROOT/runtime/devices" --work "$WORK" --model "$MODEL" --ecid "$ECID" || return $?
         MODE='Awaiting manual DFU'
         printf '\nFlash complete. Keep the USB cable connected and manually enter physical DFU.\n'
         printf 'Then select Tethered boot in the menu, or run ./tool.sh boot --execute.\n'
@@ -267,17 +255,17 @@ tethered_boot() {
     local boot_work
     local state_args=(resolve --state "$ROOT/runtime/devices" --model "$MODEL" --ecid "$ECID")
     if [ -n "$BOOT_WORK" ]; then state_args+=(--work "$BOOT_WORK"); fi
-    boot_work=$(bash "$LIB/bootstate.sh" ${state_args[@]+"${state_args[@]}"}) || return $?
+    boot_work=$(bash "$LIB/boot.sh" ${state_args[@]+"${state_args[@]}"}) || return $?
     WORK=$boot_work
     printf 'Tethered boot workspace: %s\n' "$WORK"
-    (source "$LIB/hosttools.sh"; p5_require_boot "$HOST_TOOLS") 2>/dev/null || {
-        bash "$LIB/tools.sh" fetch --out "$HOST_TOOLS" || return $?
+    (source "$LIB/usb.sh"; p5_require_boot "$HOST_TOOLS") 2>/dev/null || {
+        bash "$LIB/setup.sh" fetch --out "$HOST_TOOLS" || return $?
     }
-    bash "$LIB/tools.sh" check --out "$HOST_TOOLS" --scope boot >/dev/null || return $?
+    bash "$LIB/setup.sh" check --out "$HOST_TOOLS" --scope boot >/dev/null || return $?
     local args=(--bundle "$WORK/bundle" --ecid "$ECID" --tools-dir "$HOST_TOOLS")
     if [ "$EXECUTE" = yes ]; then args+=(--execute); fi
     # Boot the installed OS from its matching patch bundle, without a restore ramdisk.
-    bash "$LIB/patchctl.sh" ramboot ${args[@]+"${args[@]}"}
+    bash "$LIB/patches.sh" ramboot ${args[@]+"${args[@]}"}
 }
 ask() { printf '%s [%s]: ' "$1" "$2"; IFS= read -r REPLY || return 1; REPLY=${REPLY:-$2}; }
 ready_for_usb() {
@@ -425,13 +413,13 @@ trap 'exit 143' TERM
 progress "Start $COMMAND. Run log: $RUN_LOG"
 progress "Check host dependencies"
 if [ "$(uname -s)" = Darwin ]; then export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; fi
-bash "$ROOT/tools/dependencies.sh" runtime "$HOST_TOOLS" "$COMMAND"
+bash "$ROOT/lib/deps.sh" runtime "$HOST_TOOLS" "$COMMAND"
 for required in jq openssl curl bsdtar unzip zip; do command -v "$required" >/dev/null || { fail "Missing dependency: $required"; exit 2; }; done
 (source "$LIB/common.sh"; p5_native version >/dev/null)
 validate
 if [ ! -x "$HOST_TOOLS/irecovery" ]; then
-    bash "$LIB/tools.sh" detection --out "$HOST_TOOLS"
+    bash "$LIB/setup.sh" detection --out "$HOST_TOOLS"
 fi
-bash "$LIB/tools.sh" check --out "$HOST_TOOLS" --scope detection >/dev/null
+bash "$LIB/setup.sh" check --out "$HOST_TOOLS" --scope detection >/dev/null
 detect_device
 case "$COMMAND" in menu) menu ;; prepare) prepare_firmware ;; flash) flash_device ;; boot) tethered_boot ;; esac

@@ -1,0 +1,2 @@
+# stage	profile	input_sha256	patch	output_sha256
+port	wifi	0472d9785f7f2730e4cd1a47c315b0785d9a33e137c4ccd0e3e6f277fcb7d131	code.patch	efcccb78d36d8885576a9d31b0ab5d869bd48eaec231afd0dc7c82991191ff06

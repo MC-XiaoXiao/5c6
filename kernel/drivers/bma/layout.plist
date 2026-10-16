@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Address</key>
+	<integer>2161504256</integer>
+	<key>KmodOffset</key>
+	<integer>38048</integer>
+	<key>BundlePath</key>
+	<string>/System/Library/Extensions/AppleBMA282Native6.kext</string>
+	<key>Executable</key>
+	<string>AppleBMA282Native6</string>
+</dict>
+</plist>

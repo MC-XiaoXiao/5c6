@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>CFBundleName</key>
+		<string>N42CBTLTimeout</string>
+		<key>CFBundleExecutable</key>
+		<string>N42CBTLTimeout</string>
+		<key>CFBundleIdentifier</key>
+		<string>com.project.n49.N42CBTLTimeout</string>
+		<key>CFBundlePackageType</key>
+		<string>KEXT</string>
+		<key>CFBundleVersion</key>
+		<string>0.1.0</string>
+		<key>OSBundleCompatibleVersion</key>
+		<string>0.1.0</string>
+		<key>OSBundleRequired</key>
+		<string>Root</string>
+	</dict>
+</plist>

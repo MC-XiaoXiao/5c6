@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>PDPService5</key>
+		<dict>
+			<key>bInterfaceNumber</key>
+			<integer size="64">6</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>bConfigurationValue</key>
+			<integer size="64">1</integer>
+			<key>IOInterfaceUnit</key>
+			<integer size="64">1</integer>
+			<key>idProduct</key>
+			<integer size="64">36916</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+		</dict>
+		<key>PDPService2</key>
+		<dict>
+			<key>bInterfaceNumber</key>
+			<integer size="64">8</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>bConfigurationValue</key>
+			<integer size="64">1</integer>
+			<key>IOInterfaceUnit</key>
+			<integer size="64">2</integer>
+			<key>idProduct</key>
+			<integer size="64">36865</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+		</dict>
+		<key>PDPService7</key>
+		<dict>
+			<key>bInterfaceNumber</key>
+			<integer size="64">10</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>bConfigurationValue</key>
+			<integer size="64">1</integer>
+			<key>IOInterfaceUnit</key>
+			<integer size="64">3</integer>
+			<key>idProduct</key>
+			<integer size="64">36916</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+		</dict>
+		<key>PDPService4</key>
+		<dict>
+			<key>bInterfaceNumber</key>
+			<integer size="64">4</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>bConfigurationValue</key>
+			<integer size="64">1</integer>
+			<key>IOInterfaceUnit</key>
+			<integer size="64">0</integer>
+			<key>idProduct</key>
+			<integer size="64">36916</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+		</dict>
+		<key>PDPDevice1</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBasebandCompositeDriver</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>IOProbeScore</key>
+			<integer size="64">11000</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+			<key>idProduct</key>
+			<integer size="64">36916</integer>
+		</dict>
+		<key>PDPService1</key>
+		<dict>
+			<key>bInterfaceNumber</key>
+			<integer size="64">6</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>bConfigurationValue</key>
+			<integer size="64">1</integer>
+			<key>IOInterfaceUnit</key>
+			<integer size="64">1</integer>
+			<key>idProduct</key>
+			<integer size="64">36865</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+		</dict>
+		<key>PDPDevice0</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBasebandCompositeDriver</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>IOProbeScore</key>
+			<integer size="64">11000</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+			<key>idProduct</key>
+			<integer size="64">36865</integer>
+		</dict>
+		<key>AppleBasebandManager</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBasebandManager</string>
+			<key>IONameMatch</key>
+			<string>hsic-baseband</string>
+			<key>IOProviderClass</key>
+			<string>AppleUSBHSICDevice</string>
+		</dict>
+		<key>PDPService3</key>
+		<dict>
+			<key>bInterfaceNumber</key>
+			<integer size="64">10</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>bConfigurationValue</key>
+			<integer size="64">1</integer>
+			<key>IOInterfaceUnit</key>
+			<integer size="64">3</integer>
+			<key>idProduct</key>
+			<integer size="64">36865</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+		</dict>
+		<key>PDPService6</key>
+		<dict>
+			<key>bInterfaceNumber</key>
+			<integer size="64">8</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>bConfigurationValue</key>
+			<integer size="64">1</integer>
+			<key>IOInterfaceUnit</key>
+			<integer size="64">2</integer>
+			<key>idProduct</key>
+			<integer size="64">36916</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+		</dict>
+		<key>PDPService0</key>
+		<dict>
+			<key>bInterfaceNumber</key>
+			<integer size="64">4</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>bConfigurationValue</key>
+			<integer size="64">1</integer>
+			<key>IOInterfaceUnit</key>
+			<integer size="64">0</integer>
+			<key>idProduct</key>
+			<integer size="64">36865</integer>
+			<key>idVendor</key>
+			<integer size="64">1478</integer>
+		</dict>
+		<key>PDPDevice2</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBasebandCompositeDriver</string>
+			<key>IOProbeScore</key>
+			<integer>11000</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>idProduct</key>
+			<integer>36915</integer>
+			<key>idVendor</key>
+			<integer>1478</integer>
+		</dict>
+		<key>PDPDevice2-0</key>
+		<dict>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>IOInterfaceUnit</key>
+			<integer>0</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>bConfigurationValue</key>
+			<integer>1</integer>
+			<key>bInterfaceNumber</key>
+			<integer>4</integer>
+			<key>idProduct</key>
+			<integer>36915</integer>
+			<key>idVendor</key>
+			<integer>1478</integer>
+		</dict>
+		<key>PDPDevice2-1</key>
+		<dict>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>IOInterfaceUnit</key>
+			<integer>1</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>bConfigurationValue</key>
+			<integer>1</integer>
+			<key>bInterfaceNumber</key>
+			<integer>6</integer>
+			<key>idProduct</key>
+			<integer>36915</integer>
+			<key>idVendor</key>
+			<integer>1478</integer>
+		</dict>
+		<key>PDPDevice2-2</key>
+		<dict>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>IOInterfaceUnit</key>
+			<integer>2</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>bConfigurationValue</key>
+			<integer>1</integer>
+			<key>bInterfaceNumber</key>
+			<integer>8</integer>
+			<key>idProduct</key>
+			<integer>36915</integer>
+			<key>idVendor</key>
+			<integer>1478</integer>
+		</dict>
+		<key>PDPDevice2-3</key>
+		<dict>
+			<key>IOClass</key>
+			<string>ApplePDPUSB</string>
+			<key>IOInterfaceUnit</key>
+			<integer>3</integer>
+			<key>IOProviderClass</key>
+			<string>IOUSBInterface</string>
+			<key>bConfigurationValue</key>
+			<integer>1</integer>
+			<key>bInterfaceNumber</key>
+			<integer>10</integer>
+			<key>idProduct</key>
+			<integer>36915</integer>
+			<key>idVendor</key>
+			<integer>1478</integer>
+		</dict>
+	</dict>
+</plist>

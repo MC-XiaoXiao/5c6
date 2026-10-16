@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>AppleMultitouchSPI - C1,N41</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleMultitouchN1SPI</string>
+			<key>fll-mval-addr</key>
+			<integer size="64">268447840</integer>
+			<key>fw-execute-addr</key>
+			<integer size="64">268448768</integer>
+			<key>AutomaticallySetOperatingMode</key>
+			<true />
+			<key>parser-type</key>
+			<integer size="64">1</integer>
+			<key>IOProviderClass</key>
+			<string>AppleARMSPIDevice</string>
+			<key>mt-merge-personality</key>
+			<string>C1F57,1</string>
+			<key>clk32-clock-enable-addr</key>
+			<integer size="64">268449048</integer>
+			<key>cal-dl-addr</key>
+			<integer size="64">268472320</integer>
+			<key>IONameMatch</key>
+			<array>
+				<string>multi-touch,n41</string>
+			</array>
+			<key>IOCFPlugInTypes</key>
+			<dict>
+				<key>0516B563-B15B-11DA-96EB-0014519758EF</key>
+				<string>AppleMultitouchSPI.kext/PlugIns/MultitouchHID.plugin</string>
+			</dict>
+			<key>HIDServiceSupport</key>
+			<true />
+			<key>fll-mval</key>
+			<integer size="64">6099</integer>
+			<key>ref-clk-div-val</key>
+			<integer size="64">2</integer>
+			<key>clk32-clock-enable-val</key>
+			<integer size="64">1</integer>
+			<key>reset-deassert-delay</key>
+			<integer size="64">15</integer>
+			<key>CFBundleIdentifier</key>
+			<string>com.apple.driver.AppleMultitouchSPI</string>
+			<key>prox-cal-addr</key>
+			<integer size="64">268473856</integer>
+			<key>DisablePowerForUILock</key>
+			<true />
+			<key>ResetWhenExitingUILock</key>
+			<true />
+		</dict>
+		<key>AppleMultitouchSPI - C1,N48</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleMultitouchN1SPI</string>
+			<key>fll-mval-addr</key>
+			<integer size="64">268447840</integer>
+			<key>fw-execute-addr</key>
+			<integer size="64">268448768</integer>
+			<key>AutomaticallySetOperatingMode</key>
+			<true />
+			<key>parser-type</key>
+			<integer size="64">1</integer>
+			<key>IOProviderClass</key>
+			<string>AppleARMSPIDevice</string>
+			<key>mt-merge-personality</key>
+			<string>C1F57,2</string>
+			<key>clk32-clock-enable-addr</key>
+			<integer size="64">268449048</integer>
+			<key>cal-dl-addr</key>
+			<integer size="64">268472320</integer>
+			<key>IONameMatch</key>
+			<array>
+				<string>multi-touch,n48</string>
+			</array>
+			<key>IOCFPlugInTypes</key>
+			<dict>
+				<key>0516B563-B15B-11DA-96EB-0014519758EF</key>
+				<string>AppleMultitouchSPI.kext/PlugIns/MultitouchHID.plugin</string>
+			</dict>
+			<key>HIDServiceSupport</key>
+			<true />
+			<key>fll-mval</key>
+			<integer size="64">6099</integer>
+			<key>ref-clk-div-val</key>
+			<integer size="64">2</integer>
+			<key>clk32-clock-enable-val</key>
+			<integer size="64">1</integer>
+			<key>reset-deassert-delay</key>
+			<integer size="64">15</integer>
+			<key>CFBundleIdentifier</key>
+			<string>com.apple.driver.AppleMultitouchSPI</string>
+			<key>prox-cal-addr</key>
+			<integer size="64">268473856</integer>
+			<key>DisablePowerForUILock</key>
+			<true />
+			<key>ResetWhenExitingUILock</key>
+			<true />
+		</dict>
+	</dict>
+</plist>

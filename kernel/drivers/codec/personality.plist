@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>AppleCS42L81Audio</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleCS42L81Audio</string>
+			<key>IONameMatch</key>
+			<array>
+				<string>audio-control,cs42l81</string>
+			</array>
+			<key>IOProviderClass</key>
+			<string>AppleARMSPIDevice</string>
+		</dict>
+	</dict>
+</plist>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Address</key>
+	<integer>2161410048</integer>
+	<key>KmodOffset</key>
+	<integer>4120</integer>
+	<key>BundlePath</key>
+	<string>/System/Library/Extensions/N42CBTLTimeout.kext</string>
+	<key>Executable</key>
+	<string>N42CBTLTimeout</string>
+</dict>
+</plist>

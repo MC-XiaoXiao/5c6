@@ -1,0 +1,2 @@
+# stage	profile	input_sha256	patch	output_sha256
+port	*	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	code.patch	5d286844586c84c0fd640e522ce2f994c08c21380df145cc954bb9c3a96560f3

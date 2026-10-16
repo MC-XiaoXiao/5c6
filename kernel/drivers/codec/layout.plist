@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Address</key>
+	<integer>2161451008</integer>
+	<key>KmodOffset</key>
+	<integer>16448</integer>
+	<key>BundlePath</key>
+	<string>/System/Library/Extensions/AppleEmbeddedAudio.kext/PlugIns/AppleCS42L81Audio.kext</string>
+	<key>Executable</key>
+	<string>AppleCS42L81Audio</string>
+</dict>
+</plist>

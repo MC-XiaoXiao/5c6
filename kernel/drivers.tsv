@@ -1,0 +1,24 @@
+# driver	bundle_id
+amfi	com.apple.driver.AppleMobileFileIntegrity
+accessory	com.apple.iokit.IOAccessoryManager
+wifi-shim	com.apple.driver.AppleBCMWLANBusInterfaceHSICShim
+wifi	com.apple.driver.AppleBCMWLANBusInterfaceHSIC
+i2c	com.apple.driver.AppleS5L8940XI2C
+volume	com.apple.driver.LightweightVolumeManager
+gyro	com.apple.driver.AppleEmbeddedGyro
+tristar	com.apple.driver.AppleTriStar
+wifi-device	com.apple.driver.AppleBCMWLANHSICDevice
+baseband	com.apple.driver.AppleBasebandPDP
+sandbox	com.apple.security.sandbox
+accel	com.apple.driver.AppleEmbeddedNewAccelerometer
+touch	com.apple.driver.AppleMultitouchSPIC1F57
+i2s	com.apple.driver.AppleSamsungI2S
+buttons	com.apple.driver.AppleM68Buttons
+pinot	com.apple.driver.ApplePinotLCD
+display	com.apple.driver.AppleH5PCLCD
+usb-rx	com.project.n49.N42CBTLReceive
+usb-timeout	com.project.n49.N42CBTLTimeout
+usb-fault	com.project.n49.N42CBTLFault
+chestnut	com.apple.driver.AppleChestnutDisplayPMU
+codec	com.apple.driver.AppleCS42L81Audio
+bma	com.project5c.AppleBMA282Native6

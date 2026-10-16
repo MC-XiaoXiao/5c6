@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>4334 CPULess Mode</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBCMWLANHSICDevice</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>idVendor</key>
+			<integer size="64">2652</integer>
+			<key>idProduct</key>
+			<integer size="64">17204</integer>
+		</dict>
+		<key>4330 </key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBCMWLANHSICDevice</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>idVendor</key>
+			<integer size="64">2652</integer>
+			<key>idProduct</key>
+			<integer size="64">48409</integer>
+		</dict>
+		<key>4330 CPULess Mode</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBCMWLANHSICDevice</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>idVendor</key>
+			<integer size="64">2652</integer>
+			<key>idProduct</key>
+			<integer size="64">17200</integer>
+		</dict>
+		<key>4334</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBCMWLANHSICDevice</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>idVendor</key>
+			<integer size="64">2652</integer>
+			<key>idProduct</key>
+			<integer size="64">48410</integer>
+		</dict>
+		<key>4330RemoteWakeWA</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleUSBMergeNub</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>IOProviderMergeProperties</key>
+			<dict>
+				<key>kUSBDeviceRemoteWakeOverride</key>
+				<true />
+			</dict>
+			<key>idVendor</key>
+			<integer size="64">2652</integer>
+			<key>CFBundleIdentifier</key>
+			<string>com.apple.driver.AppleUSBMergeNub</string>
+			<key>idProduct</key>
+			<integer size="64">48409</integer>
+		</dict>
+		<key>43236</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBCMWLANHSICDevice</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>idVendor</key>
+			<integer size="64">2652</integer>
+			<key>idProduct</key>
+			<integer size="64">48407</integer>
+		</dict>
+		<key>43342</key>
+		<dict>
+			<key>IOClass</key>
+			<string>AppleBCMWLANHSICDevice</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBDevice</string>
+			<key>idVendor</key>
+			<integer>2652</integer>
+			<key>idProduct</key>
+			<integer>48417</integer>
+		</dict>
+	</dict>
+</plist>

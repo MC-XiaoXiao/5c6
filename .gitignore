@@ -1,21 +1,12 @@
-__pycache__/
-*.py[cod]
 runtime/
-tools/bin/**/build/
-tools/bin/**/sources/
-tools/bin/**/upstream-tools.json
-tools/bin/**/p5-native
-tools/bin/**/p5-native.tmp.*
-# These custom backends are generated locally until native builds are available.
-tools/bin/macos/dmg
-tools/bin/macos/idevicerestore
-tools/bin/macos/custom-tools.json
-tools/bin/linux/arm64/dmg
-tools/bin/linux/arm64/idevicerestore
-tools/bin/linux/arm64/custom-tools.json
-
-# Local validation, tests and restore logs are not part of the demo repository.
-/VALIDATION.md
+bin/**/build/
+bin/**/sources/
+bin/**/p5-native
+bin/**/p5-native.tmp.*
+bin/macos/dmg
+bin/macos/idevicerestore
+bin/linux/arm64/dmg
+bin/linux/arm64/idevicerestore
 /restore_*.log
-/tools/tests/
+/.irecovery
 /tests/
