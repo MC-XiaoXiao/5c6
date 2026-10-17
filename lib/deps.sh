@@ -16,7 +16,7 @@ case "$(uname -s)" in
             exit 2
         fi
         manager=brew
-        packages=(jq libarchive libplist openssl@3 curl libxml2 zlib pkgconf coreutils flock libimobiledevice)
+        packages=(jq libarchive libplist openssl@3 curl libxml2 pkgconf coreutils flock libimobiledevice)
         if ! xcrun --find clang >/dev/null 2>&1 || ! xcrun --sdk macosx --show-sdk-path >/dev/null 2>&1; then
             printf 'Install Apple Command Line Tools with: xcode-select --install\n' >&2; exit 2
         fi
@@ -32,30 +32,42 @@ case "$(uname -s)" in
         case " $distro $family " in
             *' debian '*|*' ubuntu '*)
                 manager=apt
-                packages=(jq libarchive-tools unzip zip libusb-1.0-0 openssl zlib1g curl libbz2-1.0 liblzma5 libzstd1 usbmuxd build-essential pkg-config libplist-dev libzip-dev libssl-dev libcurl4-openssl-dev zlib1g-dev libxml2-dev coreutils util-linux xxd libplist-utils libimobiledevice-utils bsdiff)
+                packages=(jq libarchive-tools unzip zip libusb-1.0-0 openssl zlib1g curl libbz2-1.0 liblzma5 libzstd1 usbmuxd build-essential pkg-config libplist-dev libssl-dev libxml2-dev coreutils util-linux libplist-utils libimobiledevice-utils)
                 if [ "$MODE" = build ]; then
                     packages+=(git cmake build-essential autoconf automake libtool pkg-config libssl-dev zlib1g-dev libimobiledevice-dev libirecovery-dev libimobiledevice-glue-dev libtatsu-dev libusbmuxd-dev libplist-dev libzip-dev libcurl4-openssl-dev libpng-dev libbz2-dev)
                 fi ;;
             *' arch '*|*' manjaro '*)
                 manager=pacman
-                packages=(jq libarchive unzip zip libusb openssl zlib curl libzip bzip2 xz zstd usbmuxd gcc make pkgconf libplist libxml2 coreutils util-linux tinyxxd libimobiledevice bsdiff)
+                packages=(jq libarchive unzip zip libusb openssl zlib curl libzip bzip2 xz zstd usbmuxd gcc make pkgconf libplist libxml2 coreutils util-linux libimobiledevice)
                 if [ "$MODE" = build ]; then
                     packages+=(git cmake gcc make autoconf automake libtool pkgconf libimobiledevice libirecovery libimobiledevice-glue libtatsu libusbmuxd libplist libpng)
                 fi ;;
             *' fedora '*|*' rhel '*|*' centos '*)
                 manager=dnf
-                packages=(jq bsdtar unzip zip libusb1 openssl-libs zlib libcurl libzip bzip2-libs xz-libs libzstd usbmuxd gcc make pkgconf-pkg-config libplist-devel libzip-devel openssl-devel libcurl-devel zlib-devel libxml2-devel coreutils util-linux vim-common libimobiledevice-utils bsdiff)
+                packages=(jq bsdtar unzip zip libusb1 openssl openssl-libs zlib libcurl libzip bzip2-libs xz-libs libzstd usbmuxd gcc make pkgconf-pkg-config libplist-devel openssl-devel libxml2-devel coreutils util-linux libimobiledevice-utils)
                 if [ "$MODE" = build ]; then
                     packages+=(git cmake gcc make autoconf automake libtool pkgconf-pkg-config openssl-devel zlib-devel libimobiledevice-devel libirecovery-devel libimobiledevice-glue-devel libtatsu-devel libusbmuxd-devel libplist-devel libzip-devel libcurl-devel libpng-devel bzip2-devel)
                 fi ;;
             *' opensuse '*|*' opensuse-tumbleweed '*|*' opensuse-leap '*|*' suse '*)
                 manager=zypper
-                packages=(jq bsdtar unzip zip libusb-1_0-0 libopenssl3 libz1 libcurl4 libzip5 libbz2-1 liblzma5 libzstd1 usbmuxd gcc make pkg-config libplist-devel libzip-devel libopenssl-devel libcurl-devel zlib-devel libxml2-devel coreutils util-linux vim-small libplist-tools imobiledevice-tools bsdiff)
+                packages=(jq bsdtar unzip zip libusb-1_0-0 openssl libopenssl3 libz1 libcurl4 libzip5 libbz2-1 liblzma5 libzstd1 usbmuxd gcc make pkg-config libplist-devel libopenssl-devel libxml2-devel coreutils util-linux libplist-tools imobiledevice-tools)
                 if [ "$MODE" = build ]; then
                     packages+=(git cmake gcc make autoconf automake libtool pkg-config libopenssl-devel zlib-devel libimobiledevice-devel libirecovery-devel libimobiledevice-glue-devel libtatsu-devel libusbmuxd-devel libplist-devel libzip-devel libcurl-devel libpng16-devel libbz2-devel)
                 fi ;;
             *) printf 'Automatic dependency installation does not support this distribution (%s). See README.md for requirements.\n' "$distro" >&2; exit 2 ;;
         esac
+        # Require the xxd command, not a particular provider package. Vim or
+        # another existing installation may already supply it. bspatch is
+        # shipped/fetched from Kit, so no distribution bsdiff package is needed.
+        if ! command -v xxd >/dev/null 2>&1; then
+            case "$manager" in
+                apt) packages+=(xxd) ;;
+                pacman) packages+=(tinyxxd) ;;
+                # RPM distributions have moved xxd between packages over time;
+                # ask the solver for its file provider instead of an editor.
+                dnf|zypper) packages+=(/usr/bin/xxd) ;;
+            esac
+        fi
         if [ "$OPERATION" = menu ] && [ "$MODE" = runtime ] && { [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; }; then
             if ! command -v kdialog >/dev/null 2>&1 && ! command -v zenity >/dev/null 2>&1; then
                 case "${XDG_CURRENT_DESKTOP:-}" in *KDE*|*kde*) packages+=(kdialog) ;; *) packages+=(zenity) ;; esac
@@ -67,7 +79,8 @@ installed() {
     case "$manager" in
         apt) [ "$(dpkg-query -W -f='${Status}' "$1" 2>/dev/null || :)" = 'install ok installed' ] ;;
         pacman) pacman -T "$1" >/dev/null 2>&1 ;;
-        dnf|zypper) rpm -q "$1" >/dev/null 2>&1 ;;
+        dnf|zypper)
+            case "$1" in /*) rpm -q --whatprovides "$1" >/dev/null 2>&1 ;; *) rpm -q "$1" >/dev/null 2>&1 ;; esac ;;
         brew)
             local versions minimum=
             versions=$("$P5_BREW" list --versions "$1" 2>/dev/null || :)
