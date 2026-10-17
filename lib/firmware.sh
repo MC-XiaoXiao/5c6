@@ -40,6 +40,38 @@ p5_wifi_files() {
         jq -nc --arg path "usr/share/firmware/wifi/43342a0/$name" --arg source "$(p5_abs "$path")" --arg sha "$(p5_sha "$path")" '{path:$path,source:$source,sha256:$sha}'
     done
 }
+p5_apply_fixed() {
+    local input=$1 info=$2 profile=$3 output=$4 idempotent=${5:-no} row patch sha size id model
+    id=$(printf '%s' "$info"|jq -r .id); model=$(printf '%s' "$info"|jq -r .model)
+    sha=$(p5_sha "$input") || return $?; size=$(p5_size "$input") || return $?
+    row=$(awk -F '\t' -v id="$id" -v model="$model" -v profile="$profile" -v sha="$sha" -v size="$size" -v idempotent="$idempotent" \
+      '$1==id && ($2=="*" || $2==model) && ($3=="*" || $3==profile) && (($4==size && $5==sha) || (idempotent=="yes" && $7==size && $8==sha)) {print; n++} END {if(n!=1)exit 2}' "$P5_ROOT/patches/files.tsv") || { p5_fail "Unsupported original for $id ($model/$profile)"; return 2; }
+    local input_size input_sha patch_path output_size output_sha
+    IFS=$'\t' read -r id model profile input_size input_sha patch_path output_size output_sha <<< "$row"
+    patch=$(p5_relative "$P5_ROOT/patches" "$patch_path") || return $?
+    if [ "$idempotent" = yes ] && [ "$size" = "$output_size" ] && [ "$sha" = "$output_sha" ]; then
+        cp -- "$input" "$output" || return $?
+    else p5_native apply "$input" "$patch" "$output" || return $?; fi
+    p5_check_file "$output" "$output_size" "$output_sha" || return $?
+    jq -nc --arg patch "$patch_path" --arg source "$sha" --arg output "$output_sha" '{format:"BSDIFF40",patch:$patch,source_sha256:$source,output_sha256:$output}'
+}
+# Dense u32 handoff and the retained 1296 MHz boost use the same checked deltas
+# for stock, normal-boot and restore iBoot-1940.1.75 binaries on N48 and N49.
+p5_patch_pmgr_boot() {
+    local kind=$1 input=$2 output=$3 id model info
+    [ "$input" != "$output" ] || { p5_fail 'PMGR patch requires a separate output'; return 2; }
+    case "$kind" in iBSS) id=pmgr-ibss ;; iBEC) id=pmgr-ibec ;; *) p5_fail 'Unknown PMGR boot component'; return 2 ;; esac
+    LC_ALL=C grep -aFq 'iBoot-1940.1.75' "$input" || { p5_fail 'Unsupported PMGR boot version'; return 2; }
+    if LC_ALL=C grep -aFq "$kind for n48ap" "$input"; then model=iPhone5,3
+    elif LC_ALL=C grep -aFq "$kind for n49ap" "$input"; then model=iPhone5,4
+    else p5_fail 'Wrong PMGR boot donor'; return 2; fi
+    info=$(jq -nc --arg id "$id" --arg model "$model" '{id:$id,model:$model}') || return $?
+    p5_apply_fixed "$input" "$info" '' "$output" yes >/dev/null || return $?
+    case "$kind" in
+        iBSS) printf '{"cpu_boost_hz":1296000000,"voltage_indices_preserved":true}\n' ;;
+        iBEC) printf '{"period_cell_bytes":4,"reserved_word_store_removed":true}\n' ;;
+    esac
+}
 p5_patch_ramdisk_binary() {
     local kind=$1 input=$2 output=$3 anchor replacement relative start at epilogue
     case "$kind" in

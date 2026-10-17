@@ -74,19 +74,6 @@ p5_input_path() {
         n4[12]-bluetool) printf '/usr/sbin/BlueTool\n' ;;
     esac
 }
-p5_apply_fixed() {
-    local input=$1 info=$2 profile=$3 output=$4 row patch sha size id model
-    id=$(printf '%s' "$info"|jq -r .id); model=$(printf '%s' "$info"|jq -r .model)
-    sha=$(p5_sha "$input") || return $?; size=$(p5_size "$input") || return $?
-    row=$(awk -F '\t' -v id="$id" -v model="$model" -v profile="$profile" -v sha="$sha" -v size="$size" \
-      '$1==id && ($2=="*" || $2==model) && ($3=="*" || $3==profile) && $4==size && $5==sha {print; n++} END {if(n!=1)exit 2}' "$P5_ROOT/patches/files.tsv") || { p5_fail "Unsupported original for $id ($model/$profile)"; return 2; }
-    local input_size input_sha patch_path output_size output_sha
-    IFS=$'\t' read -r id model profile input_size input_sha patch_path output_size output_sha <<< "$row"
-    patch=$(p5_relative "$P5_ROOT/patches" "$patch_path") || return $?
-    p5_native apply "$input" "$patch" "$output" || return $?
-    p5_check_file "$output" "$output_size" "$output_sha" || return $?
-    jq -nc --arg patch "$patch_path" --arg source "$sha" --arg output "$output_sha" '{format:"BSDIFF40",patch:$patch,source_sha256:$source,output_sha256:$output}'
-}
 p5_source_identity() {
     local inputs=$1 prefix= tree= count=0 model board version props
     for prefix in n41 n42; do if [ -f "$inputs/$prefix-devicetree.dtb" ]; then tree="$inputs/$prefix-devicetree.dtb"; count=$((count+1)); fi; done
@@ -129,6 +116,8 @@ p5_boot_patch() {
     [ "$status" -le 1 ] && [ -f "$patched" ] && grep -q 'main: Quitting' "$P5_STAGE/$ident.log" || { p5_fail 'Boot patcher failed'; return 2; }
     [ "$(p5_size "$raw")" = "$(p5_size "$patched")" ] && ! cmp -s "$raw" "$patched" || return 2
     if [ "$kind" = iBEC ]; then LC_ALL=C grep -aFq 'rd=disk0s1s1 -v debug=0x2014e wdt=-1 pio-error=0 amfi=0xff cs_enforcement_disable=1' "$patched" || return 2; fi
+    p5_patch_pmgr_boot "$kind" "$patched" "$patched.pmgr" >/dev/null || return $?
+    mv -- "$patched.pmgr" "$patched"
     p5_run_timeout 60 "$P5_BINS" xpwntool "$patched" "$output" -t "$source" -iv "$iv" -k "$key" > "$P5_STAGE/encrypt.log" 2>&1 || return $?
     p5_native img3-data "$output" "$raw.check" "$iv" "$key" || return $?; cmp -s "$patched" "$raw.check" || { p5_fail 'Boot encrypted round trip differs'; return 2; }
     printf '{"model":"N48AP","encrypted_round_trip":true}\n'
@@ -183,7 +172,7 @@ p5_build() {
     while IFS= read -r id; do p5_build_one "$id"; done < <(printf '%s' "$P5_ACTIVE"|jq -r '.[]')
     target=$(p5_target "$model" | jq 'del(.board_id)')
     if [ -f "$P5_INPUTS/SystemVersion.plist" ]; then target=$(jq -n --argjson target "$target" --argjson version "$(p5_plist "$P5_INPUTS/SystemVersion.plist")" '$target+($version|{ProductVersion,ProductBuildVersion})'); fi
-    jq -n --arg jailbreak "$jailbreak" --argjson active "$P5_ACTIVE" --argjson target "$target" --arg profile "$profile" --arg extras "$extras" --argjson source "$P5_SOURCE" --slurpfile receipts "$P5_STAGE/receipts.json" '{schema:1,kernel_layout:7,jailbreak_kernel:{enabled:($jailbreak=="yes"),revision:1},profile:$profile,extras:($extras|split(",")|map(select(length>0))),selected:$active,target:$target,files:[],input_receipts:$receipts[0],source_firmware:$source}' > "$P5_STAGE/bundle/build.json"
+    jq -n --arg jailbreak "$jailbreak" --argjson active "$P5_ACTIVE" --argjson target "$target" --arg profile "$profile" --arg extras "$extras" --argjson source "$P5_SOURCE" --slurpfile receipts "$P5_STAGE/receipts.json" '{schema:1,kernel_layout:7,pmgr:{revision:1,period_cell_bytes:4,boost_frequency_hz:1296000000},jailbreak_kernel:{enabled:($jailbreak=="yes"),revision:1},profile:$profile,extras:($extras|split(",")|map(select(length>0))),selected:$active,target:$target,files:[],input_receipts:$receipts[0],source_firmware:$source}' > "$P5_STAGE/bundle/build.json"
     while IFS= read -r id; do
         local spec; spec=$(p5_spec "$id" "$model"); path=$(printf '%s' "$spec"|jq -r .destination); mode=$(printf '%s' "$spec"|jq -r .mode)
         local output; output=$(p5_relative "$P5_STAGE/bundle" "$path"); mkdir -p "$(dirname -- "$output")"; cp -- "$P5_STAGE/cache/$id" "$output"; printf -v mode '%o' "$mode"; chmod "$mode" "$output"
@@ -196,6 +185,9 @@ p5_verify_bundle() {
     local bundle=$1 boot_only=${2:-no} report id path sha size model expected count=0
     report="$bundle/build.json"
     jq -e '(.files|length)>0 and ([.files[].id]|length)==([.files[].id]|unique|length)' "$report" >/dev/null || return 2
+    if jq -e '.files|any(.id=="ibss") and any(.id=="ibec")' "$report" >/dev/null; then
+        jq -e '.pmgr=={revision:1,period_cell_bytes:4,boost_frequency_hz:1296000000}' "$report" >/dev/null || { p5_fail 'Rebuild bundle with PMGR handoff ABI revision 1'; return 2; }
+    fi
     model=$(jq -r '.target.ProductType' "$report"); p5_target "$model" >/dev/null || return $?
     while IFS=$'\t' read -r id path sha size; do
         if [ "$boot_only" = yes ]; then
