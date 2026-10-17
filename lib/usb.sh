@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 source "$(dirname -- "${BASH_SOURCE[0]}")/firmware.sh"
 source "$P5_LIB/kernel.sh"
-p5_recovery_fields() { p5_run_timeout 15 "$1" irecovery -q | awk 'match($0,/^[A-Z]+:/) {key=substr($0,1,RLENGTH-1);value=substr($0,RLENGTH+1);sub(/^[ \t]+/,"",value);print key "\t" value}' | jq -Rn '[inputs|split("\t")|{key:.[0],value:.[1]}]|from_entries'; }
+p5_recovery_fields() {
+    local output
+    output=$(p5_run_timeout "${2:-15}" "$1" irecovery -q) || return $?
+    printf '%s\n' "$output" | awk 'match($0,/^[A-Z]+:/) {key=substr($0,1,RLENGTH-1);value=substr($0,RLENGTH+1);sub(/^[ \t]+/,"",value);print key "\t" value}' | jq -Rne '[inputs|split("\t")|{key:.[0],value:.[1]}]|from_entries|select(.ECID)'
+}
 p5_check_dfu() {
     local fields=$1 ecid=$2 target=$3 actual chip board mode
     actual=$(printf '%s' "$fields"|jq -r '.ECID//"0"'); chip=$(printf '%s' "$fields"|jq -r '.CPID//"0"'); board=$(printf '%s' "$fields"|jq -r '.BDID//"0"'); mode=$(printf '%s' "$fields"|jq -r '.MODE//""')
@@ -20,11 +24,29 @@ p5_dfu_stage() {
     if printf '%s' "$fields"|jq -e 'has("PWND") or any(.[];contains("PWND:"))' >/dev/null; then printf 'pwned-dfu\n'; else printf 'rom-dfu\n'; fi
 }
 p5_exploit_binary() {
-    if [ "$(uname -s)" = Darwin ]; then if [ "$(uname -m)" = arm64 ]; then printf 'ipwnder\n'; else printf 'x86_64/ipwnder32\n'; fi; else printf 'a6meowing\n'; fi
+    if [ "$(uname -s)" = Darwin ]; then if [ "$P5_ARCH" = arm64 ]; then printf 'ipwnder\n'; else printf 'x86_64/ipwnder32\n'; fi; else printf 'a6meowing\n'; fi
 }
 p5_require_boot() { p5_require_tools "$1" irecovery gaster "$(p5_exploit_binary)"; }
 p5_log_dfu() {
     p5_log "$1: $(printf '%s' "$2" | jq -c '{ECID,CPID,BDID,MODE,IBFL,SRTG,PWND,NONC}')"
+}
+p5_wait_dfu() {
+    local bins=$1 ecid=$2 target=$3 expected=$4 fields last= stage=unavailable attempt
+    # USB reset / iBSS execution briefly disconnects the device. Bound each
+    # query as well as the retry count; never retry a different device.
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        if fields=$(p5_recovery_fields "$bins" 2 2>/dev/null) && printf '%s' "$fields" | jq -e 'has("ECID")' >/dev/null; then
+            p5_check_dfu "$fields" "$ecid" "$target" || return $?
+            stage=$(p5_dfu_stage "$fields") || return $?
+            last=$fields
+            case "$expected:$stage" in
+                pwned:pwned-dfu|pwned:pwned-ibss|pwned-dfu:pwned-dfu|pwned-ibss:pwned-ibss) printf '%s\n' "$fields"; return ;;
+            esac
+        fi
+        [ "$attempt" = 10 ] || sleep 1 || return $?
+    done
+    [ -z "$last" ] || p5_log_dfu 'Last DFU state while waiting for handoff' "$last"
+    p5_fail "Timed out waiting for $expected (last stage: $stage); re-enter physical DFU"
 }
 p5_ibss_transport() {
     local pwner
@@ -50,7 +72,10 @@ p5_prepare_ibss() {
     p5_log_dfu 'DFU before iBSS preparation' "$fields"
     p5_check_dfu "$fields" "$ecid" "$target" || return $?
     stage=$(p5_dfu_stage "$fields") || return $?
-    if [ "$stage" = pwned-ibss ]; then p5_log 'Compatible pwned iBSS already loaded'; return; fi
+    if [ "$stage" = pwned-ibss ]; then
+        p5_fail 'Preloaded iBSS cannot be verified as the selected PMGR image; re-enter physical DFU'
+        return 2
+    fi
     p5_require_boot "$bins" || return $?
     if [ "$stage" = rom-dfu ]; then
         exploit=$(p5_exploit_binary) || return $?
@@ -74,7 +99,14 @@ p5_prepare_ibss() {
             else p5_fail "checkm8 exited with status $status" || :; fi
             return "$status"
         fi
-        fields=$(p5_recovery_fields "$bins") || return $?
+        if [ "$exploit" = ipwnder ]; then
+            # Legacy iOS Kit resets DFU after ipwnder_lite's automatic A6
+            # upload, including when iPwnder has already jumped into iBSS.
+            p5_log 'Reset DFU state after iPwnder automatic handoff'
+            p5_run_timeout 30 "$bins" gaster reset >&2 || return $?
+        fi
+        sleep 1 || return $?
+        fields=$(p5_wait_dfu "$bins" "$ecid" "$target" pwned) || return $?
         p5_log_dfu 'DFU after checkm8' "$fields"
         p5_check_dfu "$fields" "$ecid" "$target" || return $?
         stage=$(p5_dfu_stage "$fields") || return $?
@@ -91,7 +123,7 @@ p5_prepare_ibss() {
     fi
     if [ "$transport" = irecovery ]; then
         p5_run_timeout 30 "$bins" gaster reset >&2 || return $?; sleep 1 || return $?
-        fields=$(p5_recovery_fields "$bins") || return $?
+        fields=$(p5_wait_dfu "$bins" "$ecid" "$target" pwned-dfu) || return $?
         p5_log_dfu 'DFU after reset' "$fields"
         p5_check_dfu "$fields" "$ecid" "$target" || return $?
         [ "$(p5_dfu_stage "$fields")" = pwned-dfu ] || return 2
@@ -104,7 +136,7 @@ p5_prepare_ibss() {
         p5_native run-timeout 60 "$P5_NATIVE" ipwnder-ibss "$library" "$ecid" "$board" "$ibss" >&2 || return $?
     else p5_run_timeout 60 "$bins" irecovery -f "$ibss" >&2 || return $?; fi
     sleep 2 || return $?
-    fields=$(p5_recovery_fields "$bins") || return $?
+    fields=$(p5_wait_dfu "$bins" "$ecid" "$target" pwned-ibss) || return $?
     p5_log_dfu 'DFU after iBSS upload' "$fields"
     p5_check_dfu "$fields" "$ecid" "$target" || return $?
     p5_confirm_ibss "$fields" "$nonce" "$transport"

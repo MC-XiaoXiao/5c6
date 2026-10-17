@@ -5,6 +5,8 @@ P5_COMMON_LOADED=yes
 P5_LIB=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 P5_ROOT=$(CDPATH= cd -- "$P5_LIB/.." && pwd -P)
 P5_ARCH=$(uname -m); [ "$P5_ARCH" != aarch64 ] || P5_ARCH=arm64
+# uname reports x86_64 under Rosetta; select A6 tools for the physical Mac.
+if [ "$(uname -s)" = Darwin ] && [ "$(sysctl -in hw.optional.arm64 2>/dev/null || :)" = 1 ]; then P5_ARCH=arm64; fi
 if [ "$(uname -s)" = Darwin ]; then P5_TOOLS="$P5_ROOT/bin/macos"; else P5_TOOLS="$P5_ROOT/bin/linux/$P5_ARCH"; fi
 P5_NATIVE=${P5_NATIVE:-"$P5_TOOLS/p5-native"}
 p5_fail() { printf '[FAIL] %s\n' "$*" >&2; return 2; }
