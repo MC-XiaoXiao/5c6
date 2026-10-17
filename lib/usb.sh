@@ -48,6 +48,26 @@ p5_wait_dfu() {
     [ -z "$last" ] || p5_log_dfu 'Last DFU state while waiting for handoff' "$last"
     p5_fail "Timed out waiting for $expected (last stage: $stage); re-enter physical DFU"
 }
+p5_wait_recovery() {
+    local bins=$1 ecid=$2 target=$3 fields last= mode=unavailable attempt
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        if fields=$(p5_recovery_fields "$bins" 2 2>/dev/null) && printf '%s' "$fields" | jq -e 'has("ECID")' >/dev/null; then
+            mode=$(printf '%s' "$fields" | jq -r '.MODE//empty')
+            if [ "$mode" = DFU ]; then
+                # iBEC may not have re-enumerated yet. Check identity even
+                # while the previous iBSS DFU descriptor is still visible.
+                p5_check_dfu "$fields" "$ecid" "$target" || return $?
+            else
+                p5_check_recovery "$fields" "$ecid" "$target" || return $?
+                printf '%s\n' "$fields"; return
+            fi
+            last=$fields
+        fi
+        [ "$attempt" = 10 ] || sleep 1 || return $?
+    done
+    [ -z "$last" ] || p5_log_dfu 'Last device state while waiting for iBEC' "$last"
+    p5_fail "Timed out waiting for iBEC Recovery mode (last mode: $mode); re-enter physical DFU"
+}
 p5_ibss_transport() {
     local pwner
     pwner=$(printf '%s' "$1" | jq -r '(.PWND // ([.[]|select(type=="string")|scan("PWND:\\[([^]]+)\\]")|.[0]][0]) // "")|ascii_downcase') || return $?
@@ -160,7 +180,7 @@ p5_ramboot() {
     if [ "$execute" = yes ]; then
         p5_device_lock || return $?; p5_prepare_ibss "$bins" "$ecid" "$target" "$bundle/boot/iBSS.dfu" || return $?
         p5_run_timeout 60 "$bins" irecovery -f "$bundle/boot/iBEC.dfu" >&2 || return $?; sleep 2 || return $?
-        fields=$(p5_recovery_fields "$bins") || return $?; p5_check_recovery "$fields" "$ecid" "$target" || return $?
+        fields=$(p5_wait_recovery "$bins" "$ecid" "$target") || return $?
         p5_run_timeout 60 "$bins" irecovery -f "$bundle/boot/DeviceTree.img3" >&2 || return $?; p5_run_timeout 60 "$bins" irecovery -c devicetree >&2 || return $?
         p5_run_timeout 60 "$bins" irecovery -f "$kernel" >&2 || return $?; p5_run_timeout 60 "$bins" irecovery -c bootx >&2 || return $?
     else printf '%s\n' "$commands" | jq -r '.[]|@sh' >&2; fi

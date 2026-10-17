@@ -206,7 +206,7 @@ p5_restore_boot() {
         while IFS= read -r row; do
             local args=(); while IFS= read -r key; do args+=("$key"); done < <(printf '%s' "$row"|jq -r '.[1:][]')
             p5_run_timeout 60 "$bins" irecovery ${args[@]+"${args[@]}"} >&2 || return $?; sleep 2 || return $?
-            if [ "${args[0]}" = -f ] && [ "${args[1]}" = "$dir/$(printf '%s' "$components"|jq -r .ibec)" ]; then fields=$(p5_recovery_fields "$bins") || return $?; p5_check_recovery "$fields" "$ecid" "$target" || return $?; fi
+            if [ "${args[0]}" = -f ] && [ "${args[1]}" = "$dir/$(printf '%s' "$components"|jq -r .ibec)" ]; then fields=$(p5_wait_recovery "$bins" "$ecid" "$target") || return $?; fi
         done < <(printf '%s' "$commands"|jq -c '.[]')
     else printf '%s' "$commands"|jq -r '.[]|@sh' >&2; fi
     jq -n --arg execute "$execute" --arg bins "$bins" --argjson commands "$commands" '{preview:($execute!="yes"),nand_writes:false,tools_directory:$bins,commands:$commands}'
