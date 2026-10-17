@@ -3,6 +3,7 @@
 set -euo pipefail
 ROOT=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 LIB="$ROOT/lib"
+source "$LIB/host.sh"
 VERSION=6.1.3
 ACTIVATION=hacktivate
 JAILBREAK=yes
@@ -16,8 +17,7 @@ BASEBAND_DISABLED=no
 WORK="$ROOT/runtime"
 WORK_EXPLICIT=no
 BOOT_WORK=
-HOST_ARCH=$(uname -m)
-if [ "$HOST_ARCH" = aarch64 ]; then HOST_ARCH=arm64; fi
+HOST_ARCH=$(p5_host_arch)
 if [ "$(uname -s)" = Darwin ]; then
     HOST_TOOLS="$ROOT/bin/macos"
 else
@@ -53,7 +53,7 @@ Usage: ./tool.sh [menu|prepare|flash|boot] [options]
   --tools-dir PATH            Native host tools, including device detection
   --source-ipsw PATH          iPhone 5 iOS 6.1.3 / 6.1.4 source IPSW
   --download                  Download and verify the source IPSW from Apple
-  --keys PATH                 Optional offline override; otherwise fetched from AppleWiki
+  --keys PATH                 Optional JSON override; otherwise use bundled version/model keys
   --rootfs-hfs PATH --ramdisk-hfs PATH --ramdisk-template PATH --ibec-raw PATH
                              Optional pre-extracted image inputs
   --donor-inputs PATH         Optional pre-extracted matching donor directory
@@ -135,9 +135,9 @@ ensure_tools() {
     local name missing=no
     local exploit=a6meowing
     if [ "$(uname -s)" = Darwin ]; then
-        if [ "$(uname -m)" = arm64 ]; then exploit=ipwnder; else exploit=x86_64/ipwnder32; fi
+        if [ "$HOST_ARCH" = arm64 ]; then exploit=ipwnder; else exploit=x86_64/ipwnder32; fi
     fi
-    for name in irecovery "$exploit" gaster hfsplus xpwntool iBoot32Patcher dmg idevicerestore; do
+    for name in irecovery "$exploit" gaster hfsplus xpwntool iBoot32Patcher dmg idevicerestore pzb; do
         if [ ! -x "$HOST_TOOLS/$name" ]; then missing=yes; fi
     done
     if [ "$missing" = yes ]; then
@@ -412,10 +412,13 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 progress "Start $COMMAND. Run log: $RUN_LOG"
 progress "Check host dependencies"
-if [ "$(uname -s)" = Darwin ]; then export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; fi
+p5_macos_env
 bash "$ROOT/lib/deps.sh" runtime "$HOST_TOOLS" "$COMMAND"
-for required in jq openssl curl bsdtar unzip zip; do command -v "$required" >/dev/null || { fail "Missing dependency: $required"; exit 2; }; done
-(source "$LIB/common.sh"; p5_native version >/dev/null)
+p5_macos_env
+for required in jq openssl curl bsdtar unzip zip plistutil xxd flock script idevice_id; do command -v "$required" >/dev/null || { fail "Missing dependency: $required"; exit 2; }; done
+if [ "$(uname -s)" = Darwin ]; then command -v xmllint >/dev/null || { fail 'Missing dependency: xmllint (libxml2)'; exit 2; }; fi
+if [ "$(uname -s)" = Darwin ]; then required=gtimeout; else required=timeout; fi
+command -v "$required" >/dev/null || { fail "Missing dependency: $required"; exit 2; }
 validate
 if [ ! -x "$HOST_TOOLS/irecovery" ]; then
     bash "$LIB/setup.sh" detection --out "$HOST_TOOLS"

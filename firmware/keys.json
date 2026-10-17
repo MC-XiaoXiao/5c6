@@ -1,0 +1,103 @@
+{
+  "6.1.3": {
+    "build": "10B329",
+    "devices": {
+      "iPhone5,1": {
+        "source_url": "https://theapplewiki.com/wiki/Keys:BrightonMaps_10B329_(iPhone5,1)",
+        "KernelCache": {
+          "iv": "5239f948a846b07cafb5faad6f5adb38",
+          "key": "868cd6360dff1977a06155beb129a699978fb2bce13a6d621e11802a8203d1d3"
+        },
+        "DeviceTree": {
+          "iv": "808ad8f82e5c0fa986dc52fd1c0e1b01",
+          "key": "2654f2831d53b29305f058aa6b10c56d89746f40c9aeb49e5b98d8babd405011"
+        },
+        "RestoreRamDisk": {
+          "iv": "c0c565638c266a120fa8f1d4107d6b61",
+          "key": "29927207c8db5672fccb1a519ed7b05d16a4dc0a5f1fd32713fb714bfb9e7f04"
+        },
+        "rootfs": "de2a02689a24f1e2a52b7a796a657bfc9569d308d84fc27c1b4c621ae8fad32eeaa092cb"
+      },
+      "iPhone5,2": {
+        "source_url": "https://theapplewiki.com/wiki/Keys:BrightonMaps_10B329_(iPhone5,2)",
+        "KernelCache": {
+          "iv": "dc67cb57ba31ab0dbc32df7e153e73b2",
+          "key": "02c481c444e7e3b5d90e995e8365e7b53c6724188f49d9bca3d58f0ef16ba346"
+        },
+        "DeviceTree": {
+          "iv": "1adb3f1311009f60038141037721516f",
+          "key": "6ed29ef3f496b4d766cc73d2c4ab8deb37af0aec2b6bee9ec9d41edf4dcdad57"
+        },
+        "RestoreRamDisk": {
+          "iv": "1e51ebdb23dfb1a55824c459337cc23c",
+          "key": "eaebbfa1b25f28ccf00a059ddfe64662a99008ffa3db284658365cd5810c6f93"
+        },
+        "rootfs": "207f8e1e4406cf7f2baa2f86e417c5f978a087b8473c09e9cd9eca93e89a74a346a6ebc6"
+      }
+    }
+  },
+  "6.1.4": {
+    "build": "10B350",
+    "devices": {
+      "iPhone5,1": {
+        "source_url": "https://theapplewiki.com/wiki/Keys:BrightonMaps_10B350_(iPhone5,1)",
+        "KernelCache": {
+          "iv": "5c128e480c6365cbbda7b62efefac7d7",
+          "key": "6b218a9905b6fc28ab611d95650d3336ee9851df1bac2cd86e699929909f87db"
+        },
+        "DeviceTree": {
+          "iv": "808ad8f82e5c0fa986dc52fd1c0e1b01",
+          "key": "2654f2831d53b29305f058aa6b10c56d89746f40c9aeb49e5b98d8babd405011"
+        },
+        "RestoreRamDisk": {
+          "iv": "f1ec9e22cf80df92842cdeeeec02156e",
+          "key": "dfabaf8969ade6c5206c47cad5eaa7fc8ff7cfb3ce99469de1a3ea866b0b6ad9"
+        },
+        "rootfs": "1ab23a9c9e6c04f64cb817f3340e34bfba08f1d600c95cf568c8af0d97e9f8d25dabd066"
+      },
+      "iPhone5,2": {
+        "source_url": "https://theapplewiki.com/wiki/Keys:BrightonMaps_10B350_(iPhone5,2)",
+        "KernelCache": {
+          "iv": "360be822488daef816a2e78ad9119c9f",
+          "key": "05727b3d40dc0fc6e309e67f737e26031591a9e54adf62b1d74a4a75eaccf9fb"
+        },
+        "DeviceTree": {
+          "iv": "1adb3f1311009f60038141037721516f",
+          "key": "6ed29ef3f496b4d766cc73d2c4ab8deb37af0aec2b6bee9ec9d41edf4dcdad57"
+        },
+        "RestoreRamDisk": {
+          "iv": "10e7926c1cce7bbdfb0ec956ef4c1768",
+          "key": "a31d81fdcdb6645edea8b5152702bdf92b5df273a1b377e62c9b3273f43d8cb9"
+        },
+        "rootfs": "26636364204d5705d7aace7293e740616323eae2fd6c2d5aa7915b2ce7b22fa4ad8f7669"
+      }
+    }
+  },
+  "7.0.1": {
+    "build": "11A470a",
+    "devices": {
+      "iPhone5,3": {
+        "source_url": "https://theapplewiki.com/wiki/Keys:Innsbruck_11A470a_(iPhone5,3)",
+        "iBSS": {
+          "iv": "592412ff196ab347c6b18d45d9189c62",
+          "key": "e4195eacba2c816ea029150aa0afd08542c07f72a213aeff5a505e8e208f78f7"
+        },
+        "iBEC": {
+          "iv": "a6ce3610eda35e61e91e9629ccfc38c6",
+          "key": "cdf69fb38d3a24f9f427fe48643291b077618d03e046b92a978d188f2b27bc45"
+        }
+      },
+      "iPhone5,4": {
+        "source_url": "https://theapplewiki.com/wiki/Keys:Innsbruck_11A470a_(iPhone5,4)",
+        "iBSS": {
+          "iv": "1b4d4512b522a9e0dfe76a55368ce0aa",
+          "key": "29a6922e6af41e6849fe13849db464a7b9d7677bf67b6c7f7a11dad88651f345"
+        },
+        "iBEC": {
+          "iv": "2d8e6eb5e5fc56c9e27af63df40d2415",
+          "key": "95a2cf206872f5e1c6c182a66f11e65036d4cb2c6258345014f7f30a513d9c11"
+        }
+      }
+    }
+  }
+}

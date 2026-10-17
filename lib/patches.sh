@@ -7,7 +7,7 @@ p5_profile() {
     case "$1" in base|native6-validated) printf 'base\n' ;; wifi|native6-wifi-candidate) printf 'wifi\n' ;; *) p5_fail "Unknown profile: $1"; return 2 ;; esac
 }
 p5_spec() {
-    local id=$1 model=$2 kind=bsdiff input='' destination='' mode=420 payload='' core='' template='' header='' flags='[]' board
+    local id=$1 model=$2 kind=bsdiff input='' destination='' mode=420 payload='' core='' template='' flags='[]' board
     board=$(p5_target "$model"|jq -r '.HardwareModel|ascii_downcase|.[0:3]') || return $?
     case "$id" in
         kernel-validated) id=kernel-base ;; kernel-wifi-candidate) id=kernel-wifi ;;
@@ -17,7 +17,7 @@ p5_spec() {
         kernel-base|kernel-wifi) kind=kernel; input=n42-kernel.macho; destination=boot/kernelcache.macho ;;
         kernel-img3-base|kernel-img3-wifi)
             kind=container; core=${id/kernel-img3/kernel}; destination=boot/kernelcache.img3
-            template=img3/kernel.img3; header=img3/kernel.lzss ;;
+            template=img3/kernel.img3 ;;
         devicetree) input=n42-devicetree.dtb; destination=boot/DeviceTree.dtb ;;
         devicetree-img3) kind=container; core=devicetree; destination=boot/DeviceTree.img3; template=img3/devicetree.img3 ;;
         ibss|ibec)
@@ -47,8 +47,8 @@ p5_spec() {
         activation) ;;
         *) p5_fail "Unknown patch: $id"; return 2 ;;
     esac
-    jq -nc --arg id "$id" --arg model "$model" --arg kind "$kind" --arg input "$input" --arg destination "$destination" --argjson mode "$mode" --arg payload "$payload" --arg core "$core" --arg template "$template" --arg header "$header" --argjson flags "$flags" \
-      '{id:$id,model:$model,kind:$kind,mode:$mode,flags:$flags}|if $input!="" then .input=$input else . end|if $destination!="" then .destination=$destination else . end|if $payload!="" then .payload=$payload else . end|if $core!="" then .core=$core else . end|if $template!="" then .template_file=$template else . end|if $header!="" then .compression_header_file=$header else . end'
+    jq -nc --arg id "$id" --arg model "$model" --arg kind "$kind" --arg input "$input" --arg destination "$destination" --argjson mode "$mode" --arg payload "$payload" --arg core "$core" --arg template "$template" --argjson flags "$flags" \
+      '{id:$id,model:$model,kind:$kind,mode:$mode,flags:$flags}|if $input!="" then .input=$input else . end|if $destination!="" then .destination=$destination else . end|if $payload!="" then .payload=$payload else . end|if $core!="" then .core=$core else . end|if $template!="" then .template_file=$template else . end'
 }
 p5_select() {
     local profile extras=$2 only=$3 model=$4 ids id selected=()
@@ -109,7 +109,7 @@ p5_boot_patch() {
     fi
     iv=$(jq -er --arg kind "$kind" '.[$kind].iv' "$material") || return $?; key=$(jq -er --arg kind "$kind" '.[$kind].key' "$material") || return $?
     raw="$P5_STAGE/$ident.raw"; patched="$P5_STAGE/$ident.patched"
-    p5_native img3-data "$source" "$raw" "$iv" "$key" || return $?
+    p5_xpwn_decode "$source" "$raw" "$iv" "$key" || return $?
     LC_ALL=C grep -aFq "$kind for n48ap" "$raw" || { p5_fail 'Wrong boot donor'; return 2; }
     local patch_flags=(); while IFS= read -r flags; do patch_flags+=("$flags"); done < <(printf '%s\n' "$spec"|jq -r '.flags[]')
     p5_run_timeout 60 "$P5_BINS" iBoot32Patcher "$raw" "$patched" ${patch_flags[@]+"${patch_flags[@]}"} > "$P5_STAGE/$ident.log" 2>&1 || status=$?
@@ -119,11 +119,11 @@ p5_boot_patch() {
     p5_patch_pmgr_boot "$kind" "$patched" "$patched.pmgr" >/dev/null || return $?
     mv -- "$patched.pmgr" "$patched"
     p5_run_timeout 60 "$P5_BINS" xpwntool "$patched" "$output" -t "$source" -iv "$iv" -k "$key" > "$P5_STAGE/encrypt.log" 2>&1 || return $?
-    p5_native img3-data "$output" "$raw.check" "$iv" "$key" || return $?; cmp -s "$patched" "$raw.check" || { p5_fail 'Boot encrypted round trip differs'; return 2; }
+    p5_xpwn_decode "$output" "$raw.check" "$iv" "$key" || return $?; cmp -s "$patched" "$raw.check" || { p5_fail 'Boot encrypted round trip differs'; return 2; }
     printf '{"model":"N48AP","encrypted_round_trip":true}\n'
 }
 p5_build_one() {
-    local ident=$1 spec kind input= source= out="$P5_STAGE/cache/$1" name core template header value wanted
+    local ident=$1 spec kind input= source= out="$P5_STAGE/cache/$1" name core template value wanted
     [ ! -f "$out" ] || return 0
     [ ! -e "$P5_STAGE/$ident.busy" ] || { p5_fail 'Recipe dependency cycle'; return 2; }; touch "$P5_STAGE/$ident.busy"; : > "$P5_STAGE/$ident.inputs"
     spec=$(p5_spec "$ident" "$P5_MODEL"); kind=$(printf '%s' "$spec"|jq -r .kind); input=$(printf '%s' "$spec"|jq -r '.input//empty')
@@ -149,12 +149,11 @@ p5_build_one() {
         boot-feature) p5_boot_patch "$source" "$out" "$spec" "$ident" >/dev/null ;;
         container)
             core=$(printf '%s' "$spec"|jq -r .core); p5_build_one "$core"; cat "$P5_STAGE/$core.inputs" >> "$P5_STAGE/$ident.inputs"
-            if [[ "$core" = kernel-* ]]; then
-                header=$(p5_relative "$P5_ROOT/resources" "$(printf '%s' "$spec"|jq -r .compression_header_file)")
-                p5_native lzss-pack "$P5_STAGE/cache/$core" "$header" "$out.complzss"; source="$out.complzss"
-            else source="$P5_STAGE/cache/$core"; fi
             template=$(p5_relative "$P5_ROOT/resources" "$(printf '%s' "$spec"|jq -r .template_file)")
-            p5_native img3-wrap "$template" "$source" "$out"
+            p5_xpwn_pack "$P5_STAGE/cache/$core" "$out" "$template"
+            p5_xpwn_decode "$out" "$out.check"
+            cmp -s "$P5_STAGE/cache/$core" "$out.check" || { p5_fail 'IMG3 round trip differs'; return 2; }
+            rm -- "$out.check"
             ;;
         feature-runtime|payload) name=$(p5_relative "$P5_ROOT/resources" "$(printf '%s' "$spec"|jq -r .payload)"); cp -- "$name" "$out" ;;
         *) p5_fail "Unsupported recipe: $kind"; return 2 ;;

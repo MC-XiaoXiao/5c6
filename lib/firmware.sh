@@ -17,11 +17,8 @@ p5_tree_identity() {
     printf '%s\n' "$props" | jq -e --arg model "$mh" --arg board "$bh" '.model==$model and (.compatible|contains($board))' >/dev/null || { p5_fail 'DeviceTree identity differs'; return 2; }
 }
 p5_unpack_kernel() {
-    local input=$1 output=$2 raw="$2.raw"
-    if [ "$(p5_native hex-range "$input" 0 4)" = cefaedfe ]; then cp -- "$input" "$output"; return; fi
-    p5_native img3-data "$input" "$raw" || return $?
-    if [ "$(p5_native hex-range "$raw" 0 8)" = 636f6d706c7a7373 ]; then p5_native lzss-unpack "$raw" "$output" || return $?; else cp -- "$raw" "$output" || return $?; fi
-    rm -f -- "$raw"
+    if [ "$(p5_hex_range "$1" 0 4)" = cefaedfe ]; then cp -- "$1" "$2"
+    else p5_xpwn_decode "$1" "$2"; fi
 }
 p5_wifi_files() {
     local dir=$1 model=$2 prefix name path size
@@ -30,8 +27,8 @@ p5_wifi_files() {
         path="$dir/$name"
         [ -f "$path" ] && [ ! -L "$path" ] || { p5_fail "Missing WiFi donor: $name"; return 2; }
         if [[ "$name" = *.trx ]]; then
-            [ "$(p5_native hex-range "$path" 0 4)" = 48445230 ] || { p5_fail 'Invalid WiFi TRX'; return 2; }
-            size=$(p5_native hex-range "$path" 4 4); size=$((16#${size:6:2}${size:4:2}${size:2:2}${size:0:2}))
+            [ "$(p5_hex_range "$path" 0 4)" = 48445230 ] || { p5_fail 'Invalid WiFi TRX'; return 2; }
+            size=$(p5_hex_range "$path" 4 4); size=$((16#${size:6:2}${size:4:2}${size:2:2}${size:0:2}))
             [ "$size" = "$(p5_size "$path")" ] || { p5_fail 'WiFi TRX length differs'; return 2; }
         else
             LC_ALL=C grep -q 'moduleid=' "$path" && LC_ALL=C grep -q 'devid=' "$path" || { p5_fail 'Invalid WiFi calibration'; return 2; }
@@ -51,7 +48,7 @@ p5_apply_fixed() {
     patch=$(p5_relative "$P5_ROOT/patches" "$patch_path") || return $?
     if [ "$idempotent" = yes ] && [ "$size" = "$output_size" ] && [ "$sha" = "$output_sha" ]; then
         cp -- "$input" "$output" || return $?
-    else p5_native apply "$input" "$patch" "$output" || return $?; fi
+    else p5_bspatch "$input" "$patch" "$output" || return $?; fi
     p5_check_file "$output" "$output_size" "$output_sha" || return $?
     jq -nc --arg patch "$patch_path" --arg source "$sha" --arg output "$output_sha" '{format:"BSDIFF40",patch:$patch,source_sha256:$source,output_sha256:$output}'
 }
@@ -79,13 +76,13 @@ p5_patch_ramdisk_binary() {
         restored) anchor=2046a8478346bbf1000f11d14af64a210822c0f20c0141f2c9307944c0f20800cdf8048009687844; relative=12; replacement=002400f036b9 ;;
         *) p5_fail 'Unknown dynamic binary patch'; return 2 ;;
     esac
-    [ "$(p5_native hex-range "$input" 0 4)" = cefaedfe ] || return 2
-    start=$(p5_native locate "$input" "$anchor") || return $?
+    [ "$(p5_hex_range "$input" 0 4)" = cefaedfe ] || return 2
+    start=$(p5_locate "$input" "$anchor") || return $?
     if [ "$kind" = restored ]; then
         epilogue=0398002c01684ff00000419a08bf0120914202bf42b0bde8000df0bd
-        [ "$(p5_native hex-range "$input" "$((start+0x27e))" "$((${#epilogue}/2))")" = "$epilogue" ] || { p5_fail 'Restored epilogue layout differs'; return 2; }
+        [ "$(p5_hex_range "$input" "$((start+0x27e))" "$((${#epilogue}/2))")" = "$epilogue" ] || { p5_fail 'Restored epilogue layout differs'; return 2; }
     fi
-    at=$((start+relative)); p5_native edit "$input" "$output" "$at" "$replacement" || return $?
+    at=$((start+relative)); p5_edit "$input" "$output" "$at" "$replacement" || return $?
     local pages; pages=$(p5_native signature "$output" "$output") || return $?; p5_native signature "$output" >/dev/null || return $?
     jq -n --argjson offset "$at" --argjson pages "$pages" '{feature_offset:$offset,code_pages_updated:$pages}'
 }

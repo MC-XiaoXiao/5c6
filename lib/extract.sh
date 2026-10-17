@@ -21,7 +21,7 @@ decrypt_component() {
     local kind=$1 output=$2 iv key
     p5_zip_member "$IPSW" "$(member_path "$kind")" "$P5_TMP/$kind.img3"
     iv=$(jq -er --arg kind "$kind" '.source[$kind].iv' "$P5_TMP/keys.json"); key=$(jq -er --arg kind "$kind" '.source[$kind].key' "$P5_TMP/keys.json")
-    p5_native img3-data "$P5_TMP/$kind.img3" "$output" "$iv" "$key"
+    p5_xpwn_decode "$P5_TMP/$kind.img3" "$output" "$iv" "$key"
 }
 p5_log 'Extract/decrypt original RootFS'
 unzip -p "$IPSW" "$(member_path OS)" > "$P5_TMP/source-rootfs.dmg"
@@ -31,10 +31,7 @@ rm -- "$P5_TMP/source-rootfs.dmg"
 p5_native hfs-copy "$P5_TMP/source-rootfs.raw" "$P5_TMP/firmware/source-rootfs.hfs" >/dev/null
 rm -- "$P5_TMP/source-rootfs.raw"
 p5_log 'Decode source kernel and DeviceTree'
-decrypt_component KernelCache "$P5_TMP/kernel.complzss"
-p5_native lzss-unpack "$P5_TMP/kernel.complzss" "$P5_TMP/inputs/$PREFIX-kernel.macho"
-LENGTH=$(p5_native hex-range "$P5_TMP/kernel.complzss" 16 4); LENGTH=$((16#$LENGTH+384))
-dd if="$P5_TMP/kernel.complzss" of="$P5_TMP/inputs/$PREFIX-kernel.complzss" bs="$LENGTH" count=1 2>/dev/null
+decrypt_component KernelCache "$P5_TMP/inputs/$PREFIX-kernel.macho"
 decrypt_component DeviceTree "$P5_TMP/tree.dtb"; p5_native tree-trim "$P5_TMP/tree.dtb" "$P5_TMP/inputs/$PREFIX-devicetree.dtb"
 p5_log 'Extract original runtime inputs'
 for suffix in cache virtualaudio locationd commcenter bluetool; do
@@ -64,7 +61,7 @@ else
     else bash "$P5_LIB/keys.sh" --model "$MODEL" --version 7.0.1 --build 11A470a --components iBSS,iBEC > "$P5_TMP/donor-keys.json"; fi
     for kind in iBSS iBEC; do
         iv=$(jq -er --arg kind "$kind" '.[$kind].iv' "$P5_TMP/donor-keys.json"); key=$(jq -er --arg kind "$kind" '.[$kind].key' "$P5_TMP/donor-keys.json")
-        p5_native img3-data "$P5_TMP/inputs/$kind.n48.dfu" "$P5_TMP/$kind.bin" "$iv" "$key"
+        p5_xpwn_decode "$P5_TMP/inputs/$kind.n48.dfu" "$P5_TMP/$kind.bin" "$iv" "$key"
         LC_ALL=C grep -aFq "$kind for n48ap" "$P5_TMP/$kind.bin" || exit 2
     done
     cp -- "$P5_TMP/iBEC.bin" "$P5_TMP/inputs/iBEC.n48.bin"; cp -- "$P5_TMP/iBEC.bin" "$P5_TMP/firmware/donor-ibec.bin"

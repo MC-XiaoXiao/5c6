@@ -147,15 +147,15 @@ void save_plist(const char *path, plist_t p, int binary) {
   free(s);
 }
 int plist_main(int argc, char **argv) {
-  if (!strcmp(argv[1], "plist-json")) {
-    need(argc == 3, "plist-json INPUT");
+  if (!strcmp(argv[1], "typed-plist-json")) {
+    need(argc == 3, "typed-plist-json INPUT");
     plist_t p = load_plist(argv[2]);
     print_json(p);
     plist_free(p);
     return 1;
   }
-  if (!strcmp(argv[1], "json-plist")) {
-    need(argc == 4 || argc == 5, "json-plist INPUT OUTPUT [binary]");
+  if (!strcmp(argv[1], "typed-json-plist")) {
+    need(argc == 4 || argc == 5, "typed-json-plist INPUT OUTPUT [binary]");
     plist_t p = load_plist(argv[2]), v = decode_json(p);
     save_plist(argv[3], v, argc == 5);
     plist_free(p);

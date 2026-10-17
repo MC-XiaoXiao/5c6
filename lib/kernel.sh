@@ -3,7 +3,7 @@
 # Declare that dependency before either driver can probe during a restore.
 p5_restore_kernel_u32() {
     local bytes
-    bytes=$(p5_native hex-range "$1" "$2" 4) || return $?
+    bytes=$(p5_hex_range "$1" "$2" 4) || return $?
     printf '%s\n' "$((16#${bytes:6:2}${bytes:4:2}${bytes:2:2}${bytes:0:2}))"
 }
 p5_restore_sensor_kernel() {
@@ -25,7 +25,7 @@ p5_restore_sensor_kernel() {
         p5_fail 'Unsupported gyro/BMA adapter layout'; return 2;
     }
     p5_native kext-extract "$temp/kernel" com.apple.driver.AppleEmbeddedGyro "$temp/gyro" || return $?
-    [ "$(p5_native hex-range "$temp/gyro" 0x2710 6)" = 7bf028b400bf ] || {
+    [ "$(p5_hex_range "$temp/gyro" 0x2710 6)" = 7bf028b400bf ] || {
         p5_fail 'Gyro adapter branch differs'; return 2;
     }
     if printf '%s' "$meta"|jq -e 'any(._PrelinkInfoDictionary[];.CFBundleIdentifier=="com.apple.driver.AppleEmbeddedGyro" and .OSBundleLibraries["com.project5c.AppleBMA282Native6"]=="1.0.0d1")' >/dev/null; then
@@ -36,7 +36,7 @@ p5_restore_sensor_kernel() {
         p5_fail 'Conflicting gyro/BMA dependency version'; return 2;
     }
     # Require the existing, final, single-section PRELINK_INFO segment.
-    command=$(p5_native locate "$temp/kernel" 010000007c0000005f5f5052454c494e4b5f494e464f000000) || return $?
+    command=$(p5_locate "$temp/kernel" 010000007c0000005f5f5052454c494e4b5f494e464f000000) || return $?
     [ "$(p5_restore_kernel_u32 "$temp/kernel" "$((command+48))")" = 1 ] || return 2
     offset=$(p5_restore_kernel_u32 "$temp/kernel" "$((command+32))") || return $?
     size=$(p5_restore_kernel_u32 "$temp/kernel" "$((command+36))") || return $?
@@ -65,14 +65,12 @@ p5_restore_sensor_kernel() {
     cat "$temp/updated.xml" >> "$temp/updated" || return $?
     dd if=/dev/zero bs=1 count="$((capacity-used))" 2>/dev/null >> "$temp/updated" || return $?
     hex=$(printf '%08x' "$used"|sed -E 's/(..)(..)(..)(..)/\4\3\2\1/')
-    p5_native edit "$temp/updated" "$temp/header" "$((command+36))" "$hex" || return $?
-    p5_native edit "$temp/header" "$temp/patched" "$((command+92))" "$hex" || return $?
+    p5_edit "$temp/updated" "$temp/header" "$((command+36))" "$hex" || return $?
+    p5_edit "$temp/header" "$temp/patched" "$((command+92))" "$hex" || return $?
     printf '%s' "$meta"|jq -S '(._PrelinkInfoDictionary[]|select(.CFBundleIdentifier=="com.apple.driver.AppleEmbeddedGyro")|.OSBundleLibraries["com.project5c.AppleBMA282Native6"])="1.0.0d1"' > "$temp/expected.json" || return $?
     p5_native prelink "$temp/patched"|jq -S . > "$temp/actual.json" || return $?
     cmp -s "$temp/expected.json" "$temp/actual.json" || { p5_fail 'Unexpected sensor metadata change'; return 2; }
-    p5_native img3-data "$input" "$temp/template" || return $?
-    p5_native lzss-pack "$temp/patched" "$temp/template" "$temp/compressed" || return $?
-    p5_native img3-wrap "$input" "$temp/compressed" "$temp/result" plaintext || return $?
+    p5_xpwn_pack "$temp/patched" "$temp/result" "$input" || return $?
     p5_unpack_kernel "$temp/result" "$temp/readback" || return $?
     cmp -s "$temp/patched" "$temp/readback" || return 2
     mv -- "$temp/result" "$output" || return $?
@@ -93,7 +91,7 @@ p5_kernel_patch() {
     }
     IFS=$'\t' read -r stage profile sha patch wanted <<< "$row"
     patch=$(p5_relative "$directory" "$patch") || return $?
-    p5_native apply "$input" "$patch" "$output" || return $?
+    p5_bspatch "$input" "$patch" "$output" || return $?
     [ "$(p5_sha "$output")" = "$wanted" ] || { p5_fail "Driver patch output differs: $directory"; return 2; }
 }
 p5_kernel_config() {

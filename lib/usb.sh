@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 source "$(dirname -- "${BASH_SOURCE[0]}")/firmware.sh"
 source "$P5_LIB/kernel.sh"
+p5_ioreg_recovery_count() {
+    # ioreg's XML includes DATA nodes unrelated to USB identity. XPath reads
+    # only the numeric IDs, including on libplist 2.3 without JSON coercion.
+    xmllint --nonet --xpath 'count(//dict[key[.="idVendor"]/following-sibling::*[1][self::integer and .=1452]][key[.="idProduct"]/following-sibling::*[1][self::integer and (.=4647 or .=4736 or .=4737 or .=4738 or .=4739)]])' "$1"
+}
 p5_recovery_fields() {
     local output
     output=$(p5_run_timeout "${2:-15}" "$1" irecovery -q) || return $?
@@ -153,7 +158,8 @@ p5_prepare_ibss() {
     p5_log "Upload iBSS with $transport and verify DFU identity (SHA-256: $(p5_sha "$ibss"))"
     if [ "$transport" = ipwnder ]; then
         board=$(p5_target "$target"|jq -r .board_id) || return $?
-        p5_native run-timeout 60 "$P5_NATIVE" ipwnder-ibss "$library" "$ecid" "$board" "$ibss" >&2 || return $?
+        p5_native_ready || return $?
+        p5_run_timeout 60 "$bins" "$P5_NATIVE" ipwnder-ibss "$library" "$ecid" "$board" "$ibss" >&2 || return $?
     else p5_run_timeout 60 "$bins" irecovery -f "$ibss" >&2 || return $?; fi
     sleep 2 || return $?
     fields=$(p5_wait_dfu "$bins" "$ecid" "$target" pwned-ibss) || return $?
@@ -166,7 +172,7 @@ p5_device_lock() {
     local path=${1:-"$HOME/.cache/project5c-native6-device.lock"}
     mkdir -p "$(dirname -- "$path")" || return $?
     exec 9> "$path" || return $?
-    p5_native lock-fd 9 || { p5_fail 'Another device operation is running'; return 2; }
+    flock -n 9 || { p5_fail 'Another device operation is running'; return 2; }
 }
 p5_ramboot() {
     local bundle=$1 bins=$2 ecid=$3 execute=$4 report target args id fields kernel dependency

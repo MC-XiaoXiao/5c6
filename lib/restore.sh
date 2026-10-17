@@ -25,7 +25,7 @@ p5_hfs_add() {
 p5_check_components() {
     local kernel=$1 tree=$2 target=$3
     p5_temp; p5_unpack_kernel "$kernel" "$P5_TMP/check-kernel.macho" || return $?
-    [ "$(p5_native hex-range "$P5_TMP/check-kernel.macho" 0 4)" = cefaedfe ] && LC_ALL=C grep -aFq 'Darwin Kernel Version 13.' "$P5_TMP/check-kernel.macho" || { p5_fail 'Expected an iOS 6 ARM kernel'; return 2; }
+    [ "$(p5_hex_range "$P5_TMP/check-kernel.macho" 0 4)" = cefaedfe ] && LC_ALL=C grep -aFq 'Darwin Kernel Version 13.' "$P5_TMP/check-kernel.macho" || { p5_fail 'Expected an iOS 6 ARM kernel'; return 2; }
     p5_tree_identity "$tree" "$(p5_target "$target"|jq -r .ProductType)"
 }
 p5_reset_session() {
@@ -148,7 +148,7 @@ p5_restore_prepare() {
         printf '%s' "$options"|p5_write_plist "$temp/options.plist"
     fi
     for name in options.plist "options.$short.plist"; do p5_hfs_add "$bins" "$ramdisk" "usr/local/share/restore/$name" "$temp/options.plist" 420; done
-    p5_native img3-wrap "$template" "$ramdisk" "$out/RestoreRamDisk.dmg" plaintext; p5_native ramdisk-check "$out/RestoreRamDisk.dmg" >/dev/null
+    p5_xpwn_pack "$ramdisk" "$out/RestoreRamDisk.dmg" "$template"; p5_native ramdisk-check "$out/RestoreRamDisk.dmg" >/dev/null
     jq -n --arg model "$model" --arg board "$board" --arg short "$short" --argjson target "$(p5_target "$model")" --argjson version "$version" --argjson components "$components" --argjson partition "$partition" --argjson native "$native_report" '{DeviceClass:"iPhone",DeviceMap:[{BDID:$target.board_id,CPID:35152,BoardConfig:$board,Platform:"s5l8950x",SCEP:16}],FirmwareDirectory:"Firmware",ProductType:$model,SupportedProductTypes:[$model],ProductVersion:$version.ProductVersion,ProductBuildVersion:$version.ProductBuildVersion,KernelCachesByTarget:{($short):{Release:$components.kernel}},RestoreRamDisks:{User:$components.ramdisk},SystemRestoreImages:{User:$components.rootfs},MinimumSystemPartition:{($components.rootfs):$partition}}|if $native!=null then .Project5CBasebandIdentity=($native.identity|.Manifest.BasebandFirmware.Info.Path="Firmware/Baseband/Baseband.bbfw") else . end'|p5_write_plist "$out/Restore.plist"
     printf 'DeviceTree.%s.img3\n' "$board" > "$out/$all_flash/manifest"
     if [ -n "$bb$native" ]; then

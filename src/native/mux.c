@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <strings.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
 static const char *socket_path = "/var/run/usbmuxd";
@@ -94,27 +95,21 @@ static plist_t query(int fd, const char *request, const char *key) {
   return r;
 }
 int mux_main(int argc, char **argv) {
-  if (strcmp(argv[1], "mux-list") && strcmp(argv[1], "restored-probe"))
+  if (strcmp(argv[1], "restored-probe"))
     return 0;
-  int list = !strcmp(argv[1], "mux-list");
-  int positional = list ? 2 : 4;
+  int positional = 4;
   need(argc == positional ||
            (argc == positional + 2 && !strcmp(argv[positional], "--socket")),
-       "mux-list / restored-probe ECID N48AP|N49AP [--socket PATH]");
+       "restored-probe ECID N48AP|N49AP [--socket PATH]");
   if (argc == positional + 2)
     socket_path = argv[positional + 1];
   signal(SIGPIPE, SIG_IGN);
-  if (!list)
-    need(!strcasecmp(argv[3], "N48AP") || !strcasecmp(argv[3], "N49AP"),
-         "Unsupported restore target");
-  uint64_t ecid = list ? 0 : strtoull(argv[2], NULL, 0);
-  int board = !list && !strcasecmp(argv[3], "N48AP") ? 10 : 14;
+  need(!strcasecmp(argv[3], "N48AP") || !strcasecmp(argv[3], "N49AP"),
+       "Unsupported restore target");
+  uint64_t ecid = strtoull(argv[2], NULL, 0);
+  int board = !strcasecmp(argv[3], "N48AP") ? 10 : 14;
   int fd = connection();
   if (fd < 0) {
-    if (list && (errno == ENOENT || errno == ECONNREFUSED)) {
-      puts("[]");
-      return 1;
-    }
     die("usbmuxd is unavailable");
   }
   plist_t p = mux_request("ListDevices"), reply = exchange(fd, p, 1);
@@ -131,10 +126,6 @@ int mux_main(int argc, char **argv) {
     free(type);
     if (!usb)
       continue;
-    if (list) {
-      plist_array_append_item(found, plist_copy(device));
-      continue;
-    }
     fd = connection();
     if (fd < 0)
       continue;
@@ -194,13 +185,9 @@ int mux_main(int argc, char **argv) {
     plist_free(kind);
     close(fd);
   }
-  if (list)
-    print_json(found);
-  else {
-    need(plist_array_get_size(found) == 1,
-         "Expected exactly one matching iOS 6 restored USB device");
-    print_json(plist_array_get_item(found, 0));
-  }
+  need(plist_array_get_size(found) == 1,
+       "Expected exactly one matching iOS 6 restored USB device");
+  print_json(plist_array_get_item(found, 0));
   plist_free(found);
   plist_free(reply);
   return 1;

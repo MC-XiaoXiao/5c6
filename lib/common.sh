@@ -4,20 +4,20 @@ if [ "${P5_COMMON_LOADED:-no}" = yes ]; then return 0; fi
 P5_COMMON_LOADED=yes
 P5_LIB=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 P5_ROOT=$(CDPATH= cd -- "$P5_LIB/.." && pwd -P)
-P5_ARCH=$(uname -m); [ "$P5_ARCH" != aarch64 ] || P5_ARCH=arm64
-# uname reports x86_64 under Rosetta; select A6 tools for the physical Mac.
-if [ "$(uname -s)" = Darwin ] && [ "$(sysctl -in hw.optional.arm64 2>/dev/null || :)" = 1 ]; then P5_ARCH=arm64; fi
+source "$P5_LIB/host.sh"
+p5_macos_env
+P5_ARCH=$(p5_host_arch)
 if [ "$(uname -s)" = Darwin ]; then P5_TOOLS="$P5_ROOT/bin/macos"; else P5_TOOLS="$P5_ROOT/bin/linux/$P5_ARCH"; fi
 P5_NATIVE=${P5_NATIVE:-"$P5_TOOLS/p5-native"}
 p5_fail() { printf '[FAIL] %s\n' "$*" >&2; return 2; }
 p5_log() { printf '[%s] [%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "${P5_LOG_LEVEL:-STEP}" "$*" >&2; }
-p5_native() {
+p5_native_ready() {
     local source rebuild=no
     [ -x "$P5_NATIVE" ] || rebuild=yes
     for source in "$P5_ROOT"/src/native/*.[ch] "$P5_ROOT/src/native/build.sh"; do [ ! "$source" -nt "$P5_NATIVE" ] || rebuild=yes; done
     if [ "$rebuild" = yes ]; then bash "$P5_ROOT/src/native/build.sh" "$P5_NATIVE" || return $?; fi
-    "$P5_NATIVE" "$@"
 }
+p5_native() { p5_native_ready || return $?; "$P5_NATIVE" "$@"; }
 p5_sha() { openssl dgst -sha256 -r "$1" | awk '{print $1}'; }
 p5_size() { wc -c < "$1" | tr -d '[:space:]'; }
 p5_receipt() { jq -n --arg sha "$(p5_sha "$1")" --argjson size "$(p5_size "$1")" '{size:$size,sha256:$sha}'; }
@@ -56,12 +56,23 @@ p5_output_temp() {
     parent=$(dirname -- "$(p5_abs "$1")"); mkdir -p "$parent"
     p5_temp "$parent"
 }
-p5_plist() { p5_native plist-json "$1"; }
+p5_plist() {
+    local json
+    # libplist deliberately rejects DATA/DATE/UID in JSON mode. Preserve those
+    # types with the existing adapter instead of coercing them to plain strings.
+    if json=$(plistutil -f json -i "$1" 2>/dev/null); then printf '%s\n' "$json"
+    else p5_native typed-plist-json "$1"; fi
+}
 p5_write_plist() {
     p5_temp || return $?
     local input="$P5_TMP/plist-input.$RANDOM.json"
     cat > "$input" || return $?
-    p5_native json-plist "$input" "$@" || return $?
+    if jq -e '..|objects|select(has("$data") or has("$date") or has("$uid"))' "$input" >/dev/null; then
+        p5_native typed-json-plist "$input" "$@" || return $?
+    else
+        local format=xml; [ "$#" -lt 2 ] || format=bin
+        plistutil -f "$format" -i "$input" -o "$1" || return $?
+    fi
     rm -f -- "$input"
 }
 p5_args() {
@@ -88,17 +99,6 @@ p5_tool_env() {
         else export LD_LIBRARY_PATH="$directory/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; fi
     fi
 }
-p5_build_env() {
-    unset LD_LIBRARY_PATH DYLD_LIBRARY_PATH
-    if [ "$(uname -s)" = Darwin ]; then
-        export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-        local formula prefix
-        for formula in openssl@3 zlib curl libxml2 libarchive; do
-            prefix=$(brew --prefix "$formula" 2>/dev/null || :)
-            [ -z "$prefix" ] || { export PKG_CONFIG_PATH="$prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"; export CMAKE_PREFIX_PATH="$prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"; }
-        done
-    fi
-}
 p5_run() {
     local bins=$1; shift
     (p5_tool_env "$bins"; if [ -x "$bins/$1" ]; then local exe="$bins/$1"; shift; "$exe" "$@"; else "$@"; fi)
@@ -108,12 +108,28 @@ p5_run_timeout() {
     [ ! -x "$bins/$exe" ] || exe="$bins/$exe"
     local variable=LD_LIBRARY_PATH library="$bins/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     if [ "$(uname -s)" = Darwin ]; then variable=DYLD_LIBRARY_PATH; library="$bins/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"; fi
-    p5_native run-timeout "$seconds" env "$variable=$library" "$exe" "$@"
+    local timeout=timeout; [ "$(uname -s)" != Darwin ] || timeout=gtimeout
+    "$timeout" --verbose --kill-after=15 "$seconds" env "$variable=$library" "$exe" "$@"
 }
 p5_run_live() {
     local seconds=$1 bins=$2 label=$3 exe=$4; shift 4
     [ ! -x "$bins/$exe" ] || exe="$bins/$exe"
-    (p5_tool_env "$bins"; p5_native run-live "$seconds" "$label" "$exe" "$@")
+    local timeout=timeout command result=0
+    if [ "$(uname -s)" = Darwin ]; then
+        timeout=gtimeout
+        # Keep the shell as script's direct child so macOS script also returns
+        # 128+signal when timeout itself is killed by --kill-after. Pass the
+        # library path as an argument: SIP purges DYLD_* at script/bash launch.
+        local library="$bins/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+        script -q /dev/null /bin/bash -c 'stty -opost; "$@"; exit $?' p5-live "$timeout" --verbose --kill-after=15 "$seconds" env "DYLD_LIBRARY_PATH=$library" "$exe" "$@" >&2 || result=$?
+    else
+        # Older util-linux releases take a shell command string. Bash %q keeps
+        # filenames and arguments literal, including quotes and shell syntax.
+        printf -v command '%q ' /bin/bash -c 'stty -opost; "$@"; exit $?' p5-live "$timeout" --verbose --kill-after=15 "$seconds" "$exe" "$@"
+        (p5_tool_env "$bins"; SHELL=/bin/bash script -qefc "$command" /dev/null) >&2 || result=$?
+    fi
+    case "$result" in 124|137) printf '[FAIL] %s exceeded its %ss time limit (exit %s)\n' "$label" "$seconds" "$result" >&2 ;; esac
+    return "$result"
 }
 p5_hfs_run() {
     # Directory, permission and readback operations are too frequent for step logs.
@@ -147,7 +163,6 @@ p5_components() {
 p5_normalize_extras() {
     printf '%s\n' "$1" | jq -Rr 'split(",")|map(select(length>0))|unique|if all(.=="gps" or .=="baseband") then join(",") else error("Runtime extras must be gps/baseband") end'
 }
-p5_zip_member() { p5_native zip-extract "$1" "$2" "$3"; }
 p5_finish() { if [ "$(p5_get json no)" = yes ]; then cat "$1"; else p5_log "${2:-Operation complete}"; fi; }
 p5_json_update() { local file=$1; shift; jq "$@" "$file" > "$file.tmp" || return $?; mv -- "$file.tmp" "$file"; }
 
@@ -159,3 +174,4 @@ p5_tool_rows() {
 p5_source_tool() {
     p5_tool_rows source - | jq -ce --arg name "$1" 'select(.path==$name)'
 }
+source "$P5_LIB/formats.sh"

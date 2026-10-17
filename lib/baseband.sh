@@ -31,7 +31,7 @@ p5_baseband_identity() {
       |select(.Manifest.BasebandFirmware.Info.Path|test("^Firmware/Mav7Mav8-[^/]+\\.bbfw$"))' || { p5_fail 'Unsupported baseband manifest identity'; return 2; }
 }
 p5_baseband_fetch() (
-    local spec=$1 model=$2 cache=$3 dest stage='' name row url size
+    local spec=$1 model=$2 cache=$3 dest stage='' name row url
     trap '[ -z "$stage" ] || rm -rf -- "$stage"' EXIT
     dest="$cache/$model-$(printf '%s' "$spec"|jq -r .buildid)"; mkdir -p "$cache"
     if [ -d "$dest" ]; then
@@ -41,11 +41,11 @@ p5_baseband_fetch() (
         p5_log "Use cached Apple baseband $(printf '%s' "$spec"|jq -r '.version+" / "+.buildid')"
     else
         stage=$(mktemp -d "$cache/.baseband.XXXXXX") || return $?
-        url=$(p5_apple_url "$(printf '%s' "$spec"|jq -r .url)") || return $?; size=$(printf '%s' "$spec"|jq -r .filesize)
+        url=$(p5_apple_url "$(printf '%s' "$spec"|jq -r .url)") || return $?
         p5_log "Fetch Apple baseband $(printf '%s' "$spec"|jq -r '.version+" / "+.buildid')"
-        p5_run_timeout 300 "$P5_TOOLS" "$P5_NATIVE" remote-member "$url" "$size" BuildManifest.plist "$stage/BuildManifest.plist" || return $?
+        p5_remote_member "$url" BuildManifest.plist "$stage/BuildManifest.plist" || return $?
         row=$(p5_baseband_identity "$stage/BuildManifest.plist" "$spec" "$model") || return $?
-        p5_run_timeout 300 "$P5_TOOLS" "$P5_NATIVE" remote-member "$url" "$size" "$(printf '%s' "$row"|jq -r .Manifest.BasebandFirmware.Info.Path)" "$stage/Baseband.bbfw" || return $?
+        p5_remote_member "$url" "$(printf '%s' "$row"|jq -r .Manifest.BasebandFirmware.Info.Path)" "$stage/Baseband.bbfw" || return $?
         if [ "$(printf '%s' "$spec"|jq -r .buildid)" = 14G60 ]; then
             [ "$(p5_sha "$stage/Baseband.bbfw")" = 36fecf09057f5d618a3ccf3466c9e93985c6ebaa8fb42adce921d660784175b6 ] || { rm -rf -- "$stage"; p5_fail '14G60 baseband differs'; return 2; }
         fi
@@ -56,10 +56,10 @@ p5_baseband_fetch() (
 )
 p5_validate_baseband() {
     local file=$1 names name
-    names=$(p5_native zip-list "$file"|jq -Rsc 'split("\n")|map(select(length>0))')
+    names=$(p5_zip_list "$file"|jq -Rsc 'split("\n")|map(select(length>0))')
     printf '%s' "$names"|jq -e 'index("bbticket.der") and any(endswith(".mbn"))' >/dev/null || { p5_fail 'Expected personalized ZIP with BBTicket and MBN components'; return 2; }
     p5_temp
-    p5_native zip-check "$file" || return $?
+    p5_zip_check "$file" || return $?
     p5_zip_member "$file" bbticket.der "$P5_TMP/bbticket.der" || return $?
     [ -s "$P5_TMP/bbticket.der" ] || { p5_fail 'Baseband ZIP lacks ticket'; return 2; }
 }
@@ -103,25 +103,26 @@ p5_query_parameters() {
 p5_normal_query() {
     local model=$1 ecid=$2 bins=$3 udid query devices
     p5_temp
-    devices=$(p5_native mux-list) || return $?
+    devices=$(p5_normal_devices) || return $?
     while IFS= read -r udid; do
+        [ -n "$udid" ] || continue
         p5_run_timeout 15 "$bins" ideviceinfo -u "$udid" -x > "$P5_TMP/normal-query.plist" || return $?
         query=$(p5_plist "$P5_TMP/normal-query.plist") || return $?
         if printf '%s' "$query"|jq -e --arg model "$model" --argjson ecid "$((ecid))" '.ProductType==$model and .UniqueChipID==$ecid' >/dev/null; then p5_query_parameters "$query" "$model" "$ecid" >/dev/null || return $?; printf '%s\n' "$query"; return; fi
-    done < <(printf '%s' "$devices"|jq -r '.[].Properties.SerialNumber')
+    done < <(printf '%s\n' "$devices")
     p5_fail 'No matching normal-mode device with modem parameters'; return 2
 }
 p5_personalize() {
     local stock=$1 response=$2 dest=$3 dir name key blob ticket names
     p5_temp || return $?; dir=$(mktemp -d "$P5_TMP/signing.XXXXXX") || return $?
-    ticket=$(printf '%s' "$response"|jq -er '.BBTicket["$data"]') || return $?; p5_native hex-write "$ticket" "$dir/bbticket.der" || return $?
+    ticket=$(printf '%s' "$response"|jq -er '.BBTicket["$data"]') || return $?; p5_hex_write "$ticket" "$dir/bbticket.der" || return $?
     [ "$(p5_size "$dir/bbticket.der")" -ge 500 ] && [ "${ticket:0:2}" = 30 ] || return 2
-    names=$(p5_native zip-list "$stock"|jq -Rsc 'split("\n")|map(select(length>0))') || return $?; printf '%s' "$names"|jq -e '[.[]|select(endswith(".mbn"))]|sort==["apps.mbn","dsp1.mbn","dsp2.mbn","dsp3.mbn","restoresbl1.mbn","rpm.mbn","sbl1.mbn","sbl2.mbn"]' >/dev/null || return 2
+    names=$(p5_zip_list "$stock"|jq -Rsc 'split("\n")|map(select(length>0))') || return $?; printf '%s' "$names"|jq -e '[.[]|select(endswith(".mbn"))]|sort==["apps.mbn","dsp1.mbn","dsp2.mbn","dsp3.mbn","restoresbl1.mbn","rpm.mbn","sbl1.mbn","sbl2.mbn"]' >/dev/null || return 2
     for name in apps dsp1 dsp2 dsp3 rpm sbl1 sbl2 restoresbl1; do p5_zip_member "$stock" "$name.mbn" "$dir/$name.mbn" || return $?; done
     for key in SBL1-Blob RestoreSBL1-Blob; do
         name=sbl1; [ "$key" != RestoreSBL1-Blob ] || name=restoresbl1
-        blob=$(printf '%s' "$response"|jq -er --arg key "$key" '.BasebandFirmware[$key]["$data"]') || return $?; p5_native hex-write "$blob" "$dir/signature" || return $?
-        p5_native tail-stitch "$dir/$name.mbn" "$dir/signature" "$dir/$name.new" || return $?; mv -- "$dir/$name.new" "$dir/$name.mbn" || return $?
+        blob=$(printf '%s' "$response"|jq -er --arg key "$key" '.BasebandFirmware[$key]["$data"]') || return $?; p5_hex_write "$blob" "$dir/signature" || return $?
+        p5_tail_stitch "$dir/$name.mbn" "$dir/signature" "$dir/$name.new" || return $?; mv -- "$dir/$name.new" "$dir/$name.mbn" || return $?
     done
     [ ! -e "$dest" ] || return 2
     (cd -- "$dir" && touch -t 201707151628.58 ./*.mbn bbticket.der && zip -q -X "$dest" ./*.mbn bbticket.der) || return $?

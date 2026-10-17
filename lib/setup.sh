@@ -20,7 +20,8 @@ p5_check_host_tools() {
     if [ "$scope" = detection ]; then p5_require_tools "$out" irecovery; return; fi
     p5_require_boot "$out"
     if [ "$scope" = restore ]; then
-        p5_require_tools "$out" hfsplus xpwntool iBoot32Patcher dmg idevicerestore
+        p5_require_tools "$out" hfsplus xpwntool iBoot32Patcher dmg idevicerestore pzb
+        if [ ! -x "$out/bspatch" ]; then command -v bspatch >/dev/null || { p5_fail 'Missing bspatch'; return 2; }; fi
         version=$(p5_run_timeout 15 "$out" idevicerestore --version) || return $?
         [[ "$version" = *native6-5c-no-baseband* || "$version" = *native6-5c-bb-native-v[12]* ]] || { p5_fail 'Use a Project5C patched restore host'; return 2; }
     fi
@@ -29,6 +30,7 @@ p5_upgrade_restore_host() {
     local out=$1 version='' build row
     if [ -x "$out/idevicerestore" ]; then version=$(p5_run_timeout 15 "$out" idevicerestore --version) || return $?; fi
     [[ "$version" != *native6-5c-bb-native-v2* ]] || return 0
+    bash "$P5_ROOT/lib/deps.sh" build "$out" setup || return $?
     row=$(p5_source_tool idevicerestore) || return $?
     p5_fetch_locked "$row" "$out/sources/idevicerestore.tar.gz" || return $?
     mkdir -p "$out/build" || return $?

@@ -12,7 +12,7 @@ if [ "$(uname -s)" = Linux ]; then
     done
 elif [ "$(uname -s)" = Darwin ]; then
     p5_temp; /usr/sbin/ioreg -p IOUSB -a > "$P5_TMP/usb.plist"
-    COUNT=$(p5_plist "$P5_TMP/usb.plist" | jq '[..|objects|select(.idVendor?==1452 and (.idProduct? as $p|[4647,4736,4737,4738,4739]|index($p)))]|length')
+    COUNT=$(p5_ioreg_recovery_count "$P5_TMP/usb.plist")
 fi
 [ "$COUNT" -le 1 ] || { p5_fail 'Multiple recovery/DFU devices connected'; exit 2; }
 p5_temp; : > "$P5_TMP/devices.jsonl"; RECOVERY_FOUND=no
@@ -26,14 +26,14 @@ if [ -x "$BINS/irecovery" ]; then
     fi
 fi
 if [ -x "$BINS/ideviceinfo" ] || command -v ideviceinfo >/dev/null; then
-    NORMAL_DEVICES=$(p5_native mux-list)
+    NORMAL_DEVICES=$(p5_normal_devices)
     while IFS= read -r udid; do
         [ -n "$udid" ] || continue
         info=ideviceinfo; [ ! -x "$BINS/ideviceinfo" ] || info="$BINS/ideviceinfo"
         model=$(p5_run_timeout 15 "$BINS" "$info" -u "$udid" -k ProductType); ecid=$(p5_run_timeout 15 "$BINS" "$info" -u "$udid" -k UniqueChipID)
         [ -n "$model" ] && [[ "$ecid" =~ ^[0-9]+$ ]] || { p5_fail 'Normal device identity unavailable; unlock/trust or enter DFU'; exit 2; }
         jq -nc --argjson ecid "$ecid" --arg model "$model" '{ecid:$ecid,model:$model,mode:"Normal"}' >> "$P5_TMP/devices.jsonl"
-    done < <(printf '%s' "$NORMAL_DEVICES" | jq -r '.[].Properties.SerialNumber')
+    done < <(printf '%s\n' "$NORMAL_DEVICES")
 fi
 [ "$COUNT" = 0 ] || [ "$RECOVERY_FOUND" = yes ] || { p5_fail 'Recovery/DFU identity unavailable'; exit 2; }
 identity=$(jq -sc 'unique_by(.ecid)|if length==1 and (.[0].model=="iPhone5,3" or .[0].model=="iPhone5,4") and .[0].ecid>0 then .[0] else error("Connect exactly one supported iPhone 5c") end' "$P5_TMP/devices.jsonl")
