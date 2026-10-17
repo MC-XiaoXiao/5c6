@@ -18,13 +18,14 @@ TITLE='Select original iPhone 5 IPSW'; LABEL='iOS firmware (*.ipsw)'; PATTERNS='
 [ "$DIRECTORY" = no ] || TITLE='Select workspace folder'
 STATUS=0
 if [ "$(uname -s)" = Darwin ]; then
-    RESULT=$(osascript - "$FOLDER" "$TITLE" "$DIRECTORY" "$EXT" <<'APPLESCRIPT'
+    RESULT=$(osascript - "$FOLDER" "$TITLE" "$DIRECTORY" <<'APPLESCRIPT'
 on run argv
     try
         if item 3 of argv is "yes" then
             set chosen to choose folder with prompt (item 2 of argv) default location (POSIX file (item 1 of argv))
         else
-            set chosen to choose file with prompt (item 2 of argv) of type {item 4 of argv} default location (POSIX file (item 1 of argv))
+            -- Validate the extension in Bash; "ipsw" can be treated as a legacy type code here.
+            set chosen to choose file with prompt (item 2 of argv) default location (POSIX file (item 1 of argv))
         end if
         return POSIX path of chosen
     on error number -128
@@ -33,6 +34,11 @@ on run argv
 end run
 APPLESCRIPT
 ) || STATUS=$?
+    # Cancellation returns an empty result; other AppleScript failures need the terminal fallback.
+    case "$STATUS" in
+        0|130) ;;
+        *) printf '[WARN] macOS file picker failed; enter the path in the terminal.\n' >&2; exit 3 ;;
+    esac
 elif command -v kdialog >/dev/null && { [[ "${XDG_CURRENT_DESKTOP:-}" = *KDE* ]] || ! command -v zenity >/dev/null; }; then
     if [ "$DIRECTORY" = yes ]; then RESULT=$(kdialog --title "$TITLE" --getexistingdirectory "$FOLDER") || STATUS=$?;
     else RESULT=$(kdialog --title "$TITLE" --getopenfilename "$FOLDER" "$PATTERNS|$LABEL"$'\n''*|All files') || STATUS=$?; fi
@@ -43,5 +49,5 @@ elif command -v zenity >/dev/null; then
 else p5_fail 'Install zenity or kdialog, or supply a path from the terminal'; exit 2; fi
 case "$STATUS" in 0) [ -n "$RESULT" ] || exit 130 ;; 1|130) exit 130 ;; *) exit 2 ;; esac
 if [ "$DIRECTORY" = yes ]; then [ -d "$RESULT" ] || exit 2;
-else [ -f "$RESULT" ] && [ "$(printf '%s' "${RESULT##*.}" | tr '[:upper:]' '[:lower:]')" = "$EXT" ] || exit 2; fi
+else [ -f "$RESULT" ] && [ "$(printf '%s' "${RESULT##*.}" | tr '[:upper:]' '[:lower:]')" = "$EXT" ] || { p5_fail "Select an existing .$EXT file"; exit 2; }; fi
 p5_abs "$RESULT"
