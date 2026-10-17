@@ -22,37 +22,86 @@ p5_dfu_stage() {
 p5_exploit_binary() {
     if [ "$(uname -s)" = Darwin ]; then if [ "$(uname -m)" = arm64 ]; then printf 'ipwnder\n'; else printf 'x86_64/ipwnder32\n'; fi; else printf 'a6meowing\n'; fi
 }
-p5_require_boot() { p5_require_tools "$1" irecovery gaster "$(p5_exploit_binary)"; }
+p5_require_boot() { p5_require_tools "$1" irecovery gaster primepwn "$(p5_exploit_binary)"; }
+p5_log_dfu() {
+    p5_log "$1: $(printf '%s' "$2" | jq -c '{ECID,CPID,BDID,MODE,IBFL,SRTG,PWND,NONC}')"
+}
+p5_ibss_transport() {
+    local pwner
+    pwner=$(printf '%s' "$1" | jq -r '(.PWND // ([.[]|select(type=="string")|scan("PWND:\\[([^]]+)\\]")|.[0]][0]) // "")|ascii_downcase') || return $?
+    # iPwnder installs an A1/2 request handler. A normal DFU manifest/reset
+    # does not invoke it; primepwn sends the packed IMG3 and A1/2, wValue=FFFF.
+    case "$pwner" in *wnder) printf 'primepwn\n' ;; *) printf 'irecovery\n' ;; esac
+}
+p5_confirm_ibss() {
+    local fields=$1 nonce=$2 transport=$3 stage
+    stage=$(p5_dfu_stage "$fields") || return $?
+    [ "$stage" = pwned-ibss ] || {
+        p5_fail "Uploaded iBSS did not boot; device remains in $stage (transport=$transport, $(printf '%s' "$fields"|jq -c '{IBFL,SRTG,PWND}'))"
+        return 2
+    }
+    [ "$(printf '%s' "$fields"|jq -r .NONC)" = "$nonce" ] || { p5_fail 'iBSS booted but nonce changed; re-enter physical DFU'; return 2; }
+    p5_log 'Selected iBSS booted; DFU identity and nonce verified'
+}
 p5_prepare_ibss() {
-    local bins ecid=$2 target=$3 ibss fields stage nonce next status=0
+    local bins ecid=$2 target=$3 ibss fields stage nonce exploit exploit_dir board transport status=0
     bins=$(p5_abs "$1") || return $?; ibss=$(p5_abs "$4") || return $?
     fields=$(p5_recovery_fields "$bins") || return $?
+    p5_log_dfu 'DFU before iBSS preparation' "$fields"
     p5_check_dfu "$fields" "$ecid" "$target" || return $?
     stage=$(p5_dfu_stage "$fields") || return $?
     if [ "$stage" = pwned-ibss ]; then p5_log 'Compatible pwned iBSS already loaded'; return; fi
     p5_require_boot "$bins" || return $?
     if [ "$stage" = rom-dfu ]; then
+        exploit=$(p5_exploit_binary) || return $?
+        exploit_dir=$bins
+        nonce=$(printf '%s' "$fields"|jq -er .NONC) || return $?
+        if [ "$exploit" = ipwnder ]; then
+            # macOS arm64 iPwnder automatically boots its cached A6 iBSS.
+            # Seed a private cache with this session's image so it cannot boot
+            # a downloaded/stale 7.1.2 iBSS without our PMGR changes instead.
+            p5_temp || return $?
+            exploit_dir=$(mktemp -d "$P5_TMP/ipwnder.XXXXXX") || return $?
+            board=$(p5_target "$target"|jq -r '.HardwareModel|ascii_downcase|.[0:3]') || return $?
+            mkdir -p "$exploit_dir/image3" || return $?
+            cp -- "$ibss" "$exploit_dir/image3/ibss.$board" || return $?
+            p5_log "Use selected iBSS for iPwnder automatic handoff (SHA-256: $(p5_sha "$ibss"))"
+        fi
         p5_log 'Prepare pwned DFU with checkm8'
-        (cd -- "$bins" || exit $?; case "$(p5_exploit_binary)" in ipwnder) p5_run_live 180 "$bins" checkm8 ipwnder -pv ;; x86_64/ipwnder32) p5_run_live 180 "$bins" checkm8 x86_64/ipwnder32 -p --noibss ;; *) p5_run_live 180 "$bins" checkm8 a6meowing ;; esac) >&2 || status=$?
+        (cd -- "$exploit_dir" || exit $?; case "$exploit" in ipwnder) p5_run_live 180 "$bins" checkm8 ipwnder -pv ;; x86_64/ipwnder32) p5_run_live 180 "$bins" checkm8 x86_64/ipwnder32 -p --noibss ;; *) p5_run_live 180 "$bins" checkm8 a6meowing ;; esac) >&2 || status=$?
         if [ "$status" -ne 0 ]; then
             if [ "$status" = 124 ]; then p5_fail 'checkm8 timed out after 180 seconds; re-enter physical DFU and retry' || :
             else p5_fail "checkm8 exited with status $status" || :; fi
             return "$status"
         fi
         fields=$(p5_recovery_fields "$bins") || return $?
+        p5_log_dfu 'DFU after checkm8' "$fields"
+        p5_check_dfu "$fields" "$ecid" "$target" || return $?
+        stage=$(p5_dfu_stage "$fields") || return $?
+        if [ "$exploit" = ipwnder ] && [ "$stage" = pwned-ibss ]; then
+            p5_confirm_ibss "$fields" "$nonce" ipwnder
+            return $?
+        fi
+        [ "$stage" = pwned-dfu ] || { p5_fail "checkm8 returned unexpected stage: $stage"; return 2; }
+    fi
+    transport=$(p5_ibss_transport "$fields") || return $?
+    if [ "$transport" = irecovery ]; then
+        p5_run_timeout 30 "$bins" gaster reset >&2 || return $?; sleep 1 || return $?
+        fields=$(p5_recovery_fields "$bins") || return $?
+        p5_log_dfu 'DFU after reset' "$fields"
         p5_check_dfu "$fields" "$ecid" "$target" || return $?
         [ "$(p5_dfu_stage "$fields")" = pwned-dfu ] || return 2
+        [ "$(p5_ibss_transport "$fields")" = "$transport" ] || { p5_fail 'DFU transport changed after reset'; return 2; }
     fi
-    p5_run_timeout 30 "$bins" gaster reset >&2 || return $?; sleep 1 || return $?
-    fields=$(p5_recovery_fields "$bins") || return $?
-    p5_check_dfu "$fields" "$ecid" "$target" || return $?
-    [ "$(p5_dfu_stage "$fields")" = pwned-dfu ] || return 2
     nonce=$(printf '%s' "$fields"|jq -er .NONC) || return $?
-    p5_log 'Upload iBSS and verify DFU identity'
-    p5_run_timeout 60 "$bins" irecovery -f "$ibss" >&2 || return $?; sleep 2 || return $?
+    p5_log "Upload iBSS with $transport and verify DFU identity (SHA-256: $(p5_sha "$ibss"))"
+    if [ "$transport" = primepwn ]; then p5_run_timeout 60 "$bins" primepwn "$ibss" >&2 || return $?
+    else p5_run_timeout 60 "$bins" irecovery -f "$ibss" >&2 || return $?; fi
+    sleep 2 || return $?
     fields=$(p5_recovery_fields "$bins") || return $?
+    p5_log_dfu 'DFU after iBSS upload' "$fields"
     p5_check_dfu "$fields" "$ecid" "$target" || return $?
-    [ "$(p5_dfu_stage "$fields")" = pwned-ibss ] && [ "$(printf '%s' "$fields"|jq -r .NONC)" = "$nonce" ] || { p5_fail 'Uploaded iBSS/nonce differs'; return 2; }
+    p5_confirm_ibss "$fields" "$nonce" "$transport"
 }
 p5_device_lock() {
     # The inherited descriptor keeps the kernel lock until this Bash exits.

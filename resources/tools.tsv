@@ -1,4 +1,8 @@
 # platform	arch	path	size	sha256	mode	url
+linux	x86_64	primepwn	265072	b7c80fbc7d1204052e1f8db0d5408952d34c899ae05d4ec81082132449888f6a	493	https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/primepwn
+linux	arm64	primepwn	278144	fe6bd515c5816e9ea1b76f4b4ef7489a89f3138b2f1f2a8e7cac6b850e6c37c0	493	https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/arm64/primepwn
+macos	x86_64	primepwn	118632	fc4197cd736fac0a903d7a5737deb06d46217a3c3eb615ffeef0e176b6242ef5	493	https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/primepwn
+macos	arm64	primepwn	118632	fc4197cd736fac0a903d7a5737deb06d46217a3c3eb615ffeef0e176b6242ef5	493	https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/macos/primepwn
 linux	x86_64	irecovery	200984	e91ba0da5df4c4cadf4deaee1e86ef67556153bec310ccb5d4827e5afee8187a	493	https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/irecovery
 linux	x86_64	a6meowing	478664	cf8134a9ceffde0a62640771ba7d72cd009931c01b6d814ddb27a1a8292a3e24	493	https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/a6meowing
 linux	x86_64	gaster	4563224	4440ec8ff95858ab65b2d7658880e00056e8395699be490f3552f3c895786237	493	https://raw.githubusercontent.com/LukeZGD/Legacy-iOS-Kit/c9dfd212e6f59188c74026b20bf96f2f06e339f9/bin/linux/x86_64/gaster
