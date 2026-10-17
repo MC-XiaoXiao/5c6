@@ -41,4 +41,5 @@ int process_main(int argc, char **argv);
 int kernel_main(int argc, char **argv);
 int macho_main(int argc, char **argv);
 int media_main(int argc, char **argv);
+int usb_main(int argc, char **argv);
 #endif

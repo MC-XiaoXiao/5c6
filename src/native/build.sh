@@ -18,9 +18,12 @@ pkg-config --atleast-version=2.3 libplist-2.0 || { printf 'libplist 2.3 or newer
 pkg-config --exists libplist-2.0 openssl libzip libcurl zlib libxml-2.0 libarchive
 read -r -a CFLAGS <<< "$(pkg-config --cflags libplist-2.0 openssl libzip libcurl zlib libxml-2.0 libarchive)"
 read -r -a LIBS <<< "$(pkg-config --libs libplist-2.0 openssl libzip libcurl zlib libxml-2.0 libarchive)"
+DL_LIBS=()
+# dlopen is in libSystem on macOS and the standard system libdl on Linux.
+[ "$(uname -s)" = Darwin ] || DL_LIBS=(-ldl)
 TEMP="$OUT.tmp.$$"
 trap 'rm -f -- "$TEMP"' EXIT
-"${CC:-cc}" -O2 -std=gnu11 -Wall -Wextra -Werror -Wno-deprecated-declarations ${CFLAGS[@]+"${CFLAGS[@]}"} "$SRC/core.c" "$SRC/plist.c" "$SRC/zip.c" "$SRC/mux.c" "$SRC/archive.c" "$SRC/process.c" "$SRC/macho.c" "$SRC/media.c" "$SRC/kernel.c" ${LIBS[@]+"${LIBS[@]}"} -lbz2 -o "$TEMP"
+"${CC:-cc}" -O2 -std=gnu11 -Wall -Wextra -Werror -Wno-deprecated-declarations ${CFLAGS[@]+"${CFLAGS[@]}"} "$SRC/core.c" "$SRC/plist.c" "$SRC/zip.c" "$SRC/mux.c" "$SRC/archive.c" "$SRC/process.c" "$SRC/macho.c" "$SRC/media.c" "$SRC/kernel.c" "$SRC/usb.c" ${LIBS[@]+"${LIBS[@]}"} ${DL_LIBS[@]+"${DL_LIBS[@]}"} -lbz2 -o "$TEMP"
 chmod 755 "$TEMP"
 mv -f -- "$TEMP" "$OUT"
 printf 'Built native format tool: %s\n' "$OUT" >&2

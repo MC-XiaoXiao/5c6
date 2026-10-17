@@ -741,7 +741,7 @@ int main(int argc, char **argv) {
     puts("project5c-native 1");
   } else if (plist_main(argc, argv) || zip_main(argc, argv) ||
              mux_main(argc, argv) || archive_main(argc, argv) ||
-             process_main(argc, argv) || macho_main(argc, argv) || media_main(argc, argv) || kernel_main(argc, argv)) {
+             process_main(argc, argv) || macho_main(argc, argv) || media_main(argc, argv) || kernel_main(argc, argv) || usb_main(argc, argv)) {
   } else
     die("Unknown operation: %s", cmd);
   return 0;

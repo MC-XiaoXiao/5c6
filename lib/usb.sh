@@ -22,7 +22,7 @@ p5_dfu_stage() {
 p5_exploit_binary() {
     if [ "$(uname -s)" = Darwin ]; then if [ "$(uname -m)" = arm64 ]; then printf 'ipwnder\n'; else printf 'x86_64/ipwnder32\n'; fi; else printf 'a6meowing\n'; fi
 }
-p5_require_boot() { p5_require_tools "$1" irecovery gaster primepwn "$(p5_exploit_binary)"; }
+p5_require_boot() { p5_require_tools "$1" irecovery gaster "$(p5_exploit_binary)"; }
 p5_log_dfu() {
     p5_log "$1: $(printf '%s' "$2" | jq -c '{ECID,CPID,BDID,MODE,IBFL,SRTG,PWND,NONC}')"
 }
@@ -30,8 +30,8 @@ p5_ibss_transport() {
     local pwner
     pwner=$(printf '%s' "$1" | jq -r '(.PWND // ([.[]|select(type=="string")|scan("PWND:\\[([^]]+)\\]")|.[0]][0]) // "")|ascii_downcase') || return $?
     # iPwnder installs an A1/2 request handler. A normal DFU manifest/reset
-    # does not invoke it; primepwn sends the packed IMG3 and A1/2, wValue=FFFF.
-    case "$pwner" in *wnder) printf 'primepwn\n' ;; *) printf 'irecovery\n' ;; esac
+    # does not invoke it; the native helper sends IMG3 and A1/2, wValue=FFFF.
+    case "$pwner" in *wnder) printf 'ipwnder\n' ;; *) printf 'irecovery\n' ;; esac
 }
 p5_confirm_ibss() {
     local fields=$1 nonce=$2 transport=$3 stage
@@ -44,7 +44,7 @@ p5_confirm_ibss() {
     p5_log 'Selected iBSS booted; DFU identity and nonce verified'
 }
 p5_prepare_ibss() {
-    local bins ecid=$2 target=$3 ibss fields stage nonce exploit exploit_dir board transport status=0
+    local bins ecid=$2 target=$3 ibss fields stage nonce exploit exploit_dir board transport library status=0
     bins=$(p5_abs "$1") || return $?; ibss=$(p5_abs "$4") || return $?
     fields=$(p5_recovery_fields "$bins") || return $?
     p5_log_dfu 'DFU before iBSS preparation' "$fields"
@@ -85,6 +85,10 @@ p5_prepare_ibss() {
         [ "$stage" = pwned-dfu ] || { p5_fail "checkm8 returned unexpected stage: $stage"; return 2; }
     fi
     transport=$(p5_ibss_transport "$fields") || return $?
+    if [ "$transport" = ipwnder ]; then
+        library="$bins/lib/libirecovery-1.0.5.dylib"
+        [ -r "$library" ] || { p5_fail "iPwnder handoff requires the bundled libirecovery: $library"; return 2; }
+    fi
     if [ "$transport" = irecovery ]; then
         p5_run_timeout 30 "$bins" gaster reset >&2 || return $?; sleep 1 || return $?
         fields=$(p5_recovery_fields "$bins") || return $?
@@ -95,7 +99,9 @@ p5_prepare_ibss() {
     fi
     nonce=$(printf '%s' "$fields"|jq -er .NONC) || return $?
     p5_log "Upload iBSS with $transport and verify DFU identity (SHA-256: $(p5_sha "$ibss"))"
-    if [ "$transport" = primepwn ]; then p5_run_timeout 60 "$bins" primepwn "$ibss" >&2 || return $?
+    if [ "$transport" = ipwnder ]; then
+        board=$(p5_target "$target"|jq -r .board_id) || return $?
+        p5_native run-timeout 60 "$P5_NATIVE" ipwnder-ibss "$library" "$ecid" "$board" "$ibss" >&2 || return $?
     else p5_run_timeout 60 "$bins" irecovery -f "$ibss" >&2 || return $?; fi
     sleep 2 || return $?
     fields=$(p5_recovery_fields "$bins") || return $?
