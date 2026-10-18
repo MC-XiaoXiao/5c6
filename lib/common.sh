@@ -115,17 +115,19 @@ p5_run_live() {
     local seconds=$1 bins=$2 label=$3 exe=$4; shift 4
     [ ! -x "$bins/$exe" ] || exe="$bins/$exe"
     local timeout=timeout command result=0
+    # script puts the outer terminal in raw mode. Keep LF -> CRLF processing
+    # on its slave so streamed lines return to column one through tee as well.
     if [ "$(uname -s)" = Darwin ]; then
         timeout=gtimeout
         # Keep the shell as script's direct child so macOS script also returns
         # 128+signal when timeout itself is killed by --kill-after. Pass the
         # library path as an argument: SIP purges DYLD_* at script/bash launch.
         local library="$bins/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-        script -q /dev/null /bin/bash -c 'stty -opost; "$@"; exit $?' p5-live "$timeout" --verbose --kill-after=15 "$seconds" env "DYLD_LIBRARY_PATH=$library" "$exe" "$@" >&2 || result=$?
+        script -q /dev/null /bin/bash -c 'stty opost onlcr; "$@"; exit $?' p5-live "$timeout" --verbose --kill-after=15 "$seconds" env "DYLD_LIBRARY_PATH=$library" "$exe" "$@" >&2 || result=$?
     else
         # Older util-linux releases take a shell command string. Bash %q keeps
         # filenames and arguments literal, including quotes and shell syntax.
-        printf -v command '%q ' /bin/bash -c 'stty -opost; "$@"; exit $?' p5-live "$timeout" --verbose --kill-after=15 "$seconds" "$exe" "$@"
+        printf -v command '%q ' /bin/bash -c 'stty opost onlcr; "$@"; exit $?' p5-live "$timeout" --verbose --kill-after=15 "$seconds" "$exe" "$@"
         (p5_tool_env "$bins"; SHELL=/bin/bash script -qefc "$command" /dev/null) >&2 || result=$?
     fi
     case "$result" in 124|137) printf '[FAIL] %s exceeded its %ss time limit (exit %s)\n' "$label" "$seconds" "$result" >&2 ;; esac
