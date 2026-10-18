@@ -103,14 +103,18 @@ p5_run() {
     local bins=$1; shift
     (p5_tool_env "$bins"; if [ -x "$bins/$1" ]; then local exe="$bins/$1"; shift; "$exe" "$@"; else "$@"; fi)
 }
-p5_run_timeout() {
+p5_timeout_argv() {
     local seconds=$1 bins=$2 exe=$3; shift 3
     [ ! -x "$bins/$exe" ] || exe="$bins/$exe"
     local variable=LD_LIBRARY_PATH library="$bins/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     if [ "$(uname -s)" = Darwin ]; then variable=DYLD_LIBRARY_PATH; library="$bins/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"; fi
     local timeout=timeout; [ "$(uname -s)" != Darwin ] || timeout=gtimeout
-    "$timeout" --verbose --kill-after=15 "$seconds" env "$variable=$library" "$exe" "$@"
+    P5_TIMEOUT_ARGV=("$timeout" --verbose --kill-after=15 "$seconds" env "$variable=$library" "$exe" "$@")
 }
+p5_run_timeout() (
+    p5_timeout_argv "$@" || return $?
+    exec "${P5_TIMEOUT_ARGV[@]}"
+)
 p5_run_live() {
     local seconds=$1 bins=$2 label=$3 exe=$4; shift 4
     [ ! -x "$bins/$exe" ] || exe="$bins/$exe"
@@ -176,4 +180,5 @@ p5_tool_rows() {
 p5_source_tool() {
     p5_tool_rows source - | jq -ce --arg name "$1" 'select(.path==$name)'
 }
+source "$P5_LIB/output.sh"
 source "$P5_LIB/formats.sh"

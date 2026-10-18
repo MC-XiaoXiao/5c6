@@ -400,6 +400,7 @@ fi
 # Keep stdin attached to the terminal for menus and sudo. Only output is teed.
 mkdir -p "$ROOT/runtime/logs"
 RUN_LOG=$(mktemp "$ROOT/runtime/logs/$(date '+%Y%m%d-%H%M%S')-$COMMAND.log.XXXXXX")
+export P5_TOOL_LOG_DIR="$RUN_LOG.tools"
 exec 3>&1 4>&2
 exec > >(tee -a "$RUN_LOG") 2>&1
 LOG_TEE_PID=$!
@@ -420,6 +421,7 @@ trap finish_log EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 progress "Start $COMMAND. Run log: $RUN_LOG"
+progress "Tool diagnostics: $P5_TOOL_LOG_DIR"
 progress "Check host dependencies"
 p5_macos_env
 bash "$ROOT/lib/deps.sh" runtime "$HOST_TOOLS" "$COMMAND"

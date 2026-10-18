@@ -211,7 +211,7 @@ p5_prepare_ibss() {
         board=$(p5_target "$target"|jq -r .board_id) || return $?
         p5_native_ready || return $?
         p5_run_timeout 60 "$bins" "$P5_NATIVE" ipwnder-ibss "$library" "$ecid" "$board" "$ibss" >&2 || return $?
-    else p5_run_timeout 60 "$bins" irecovery -f "$ibss" >&2 || return $?; fi
+    else p5_upload "$bins" "$ibss" || return $?; fi
     sleep 2 || return $?
     fields=$(p5_wait_dfu "$bins" "$ecid" "$target" pwned-ibss) || return $?
     p5_log_dfu 'DFU after iBSS upload' "$fields"
@@ -236,10 +236,10 @@ p5_ramboot() {
     local commands; commands=$(jq -n --arg bins "$bins" --arg bundle "$(p5_abs "$bundle")" --arg kernel "$kernel" '[[($bins+"/irecovery"),"-f",($bundle+"/boot/iBEC.dfu")],[($bins+"/irecovery"),"-f",($bundle+"/boot/DeviceTree.img3")],[($bins+"/irecovery"),"-c","devicetree"],[($bins+"/irecovery"),"-f",$kernel],[($bins+"/irecovery"),"-c","bootx"]]')
     if [ "$execute" = yes ]; then
         p5_device_lock || return $?; p5_prepare_ibss "$bins" "$ecid" "$target" "$bundle/boot/iBSS.dfu" || return $?
-        p5_run_timeout 60 "$bins" irecovery -f "$bundle/boot/iBEC.dfu" >&2 || return $?; sleep 2 || return $?
+        p5_upload "$bins" "$bundle/boot/iBEC.dfu" || return $?; sleep 2 || return $?
         fields=$(p5_wait_recovery "$bins" "$ecid" "$target") || return $?
-        p5_run_timeout 60 "$bins" irecovery -f "$bundle/boot/DeviceTree.img3" >&2 || return $?; p5_run_timeout 60 "$bins" irecovery -c devicetree >&2 || return $?
-        p5_run_timeout 60 "$bins" irecovery -f "$kernel" >&2 || return $?; p5_run_timeout 60 "$bins" irecovery -c bootx >&2 || return $?
+        p5_upload "$bins" "$bundle/boot/DeviceTree.img3" || return $?; p5_run_timeout 60 "$bins" irecovery -c devicetree >&2 || return $?
+        p5_upload "$bins" "$kernel" || return $?; p5_run_timeout 60 "$bins" irecovery -c bootx >&2 || return $?
     else printf '%s\n' "$commands" | jq -r '.[]|@sh' >&2; fi
     jq -n --argjson commands "$commands" --argjson dependency "$dependency" --arg execute "$execute" '{preview:($execute!="yes"),commands:$commands,nand_kernel_written:false,sensor_dependency:$dependency}'
 }

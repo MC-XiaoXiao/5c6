@@ -57,11 +57,11 @@ p5_zip_member() {
 p5_xpwn_decode() {
     local input=$1 output=$2 iv=${3:-} key=${4:-} args=()
     [ -z "$iv" ] || args=(-iv "$iv" -k "$key")
-    p5_run_timeout 180 "$(p5_host_bins)" xpwntool "$input" "$output" ${args[@]+"${args[@]}"} >&2
+    p5_run_logged quiet 180 "$(p5_host_bins)" "Decode ${input##*/}" xpwntool "$input" "$output" ${args[@]+"${args[@]}"}
 }
 p5_xpwn_pack() {
     local input=$1 output=$2 template=$3
-    p5_run_timeout 180 "$(p5_host_bins)" xpwntool "$input" "$output" -t "$template" >&2
+    p5_run_logged quiet 180 "$(p5_host_bins)" "Pack ${output##*/}" xpwntool "$input" "$output" -t "$template"
 }
 p5_normal_devices() {
     p5_run_timeout 15 "$(p5_host_bins)" idevice_id -l
@@ -70,7 +70,7 @@ p5_remote_member() {
     local url=$1 member=$2 output=$3 result=0
     # Without -c this pinned pzb strips the directory part of -o, even when
     # the destination already exists. Retain the complete workspace path.
-    (ulimit -f 65536; p5_run_live 300 "$(p5_host_bins)" "Download $member" pzb -c -g "$member" -o "$output" "$url") || result=$?
+    (ulimit -f 65536; p5_run_logged progress 300 "$(p5_host_bins)" "Download $member" pzb -c -g "$member" -o "$output" "$url") || result=$?
     if [ "$result" -ne 0 ]; then rm -f -- "$output"; return "$result"; fi
     [ -s "$output" ] && [ "$(p5_size "$output")" -le 67108864 ] || { rm -f -- "$output"; p5_fail 'Remote ZIP member exceeds component limit'; return 2; }
 }

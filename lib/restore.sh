@@ -124,10 +124,10 @@ p5_restore_prepare() {
     [ "$status" -le 1 ] && grep -q 'main: Quitting' "$temp/ibec.log" && LC_ALL=C grep -aFq "$P5_BOOTARGS" "$temp/restore-iBEC.bin" || { p5_fail 'Restore iBEC patch failed'; return 2; }
     p5_patch_pmgr_boot iBEC "$temp/restore-iBEC.bin" "$temp/restore-iBEC.pmgr.bin" >/dev/null || return $?
     mv -- "$temp/restore-iBEC.pmgr.bin" "$temp/restore-iBEC.bin"
-    path=$(printf '%s' "$components"|jq -r .ibec); p5_run_timeout 180 "$bins" xpwntool "$temp/restore-iBEC.bin" "$out/$path" -t "$bundle/boot/iBEC.dfu" >&2
+    path=$(printf '%s' "$components"|jq -r .ibec); p5_run_logged quiet 180 "$bins" 'Pack restore iBEC' xpwntool "$temp/restore-iBEC.bin" "$out/$path" -t "$bundle/boot/iBEC.dfu" || return $?
     path=$(printf '%s' "$components"|jq -r .kernel); p5_hfs_add "$bins" "$system" System/Library/Caches/com.apple.kernelcaches/kernelcache "$out/$path" 420
-    p5_log 'Build explicit-zero RootFS DMG'
-    p5_run_timeout 1800 "$bins" "$(p5_get dmg-tool "$bins/dmg")" build "$system" "$out/RootFS.dmg" >&2; dmg_report=$(p5_native dmg-check "$out/RootFS.dmg")
+    p5_run_logged step 1800 "$bins" 'Build explicit-zero RootFS DMG' "$(p5_get dmg-tool "$bins/dmg")" build "$system" "$out/RootFS.dmg" || return $?
+    dmg_report=$(p5_native dmg-check "$out/RootFS.dmg")
     p5_log 'Prepare restore ramdisk: Wi-Fi, ASR, restored and options'
     ramdisk="$out/RestoreRamDisk.hfs"; p5_native hfs-copy "$original_ram" "$ramdisk" >/dev/null
     local ram_size; ram_size=$(($(p5_size "$ramdisk")+8*1048576)); [ "$ram_size" -ge 41943040 ] || ram_size=41943040; p5_hfs_run 180 "$bins" "$ramdisk" grow "$ram_size"
@@ -205,7 +205,9 @@ p5_restore_boot() {
         p5_prepare_ibss "$bins" "$ecid" "$target" "$dir/$(printf '%s' "$components"|jq -r .ibss)" || return $?
         while IFS= read -r row; do
             local args=(); while IFS= read -r key; do args+=("$key"); done < <(printf '%s' "$row"|jq -r '.[1:][]')
-            p5_run_timeout 60 "$bins" irecovery ${args[@]+"${args[@]}"} >&2 || return $?; sleep 2 || return $?
+            if [ "${args[0]}" = -f ]; then p5_upload "$bins" "${args[1]}" || return $?
+            else p5_run_timeout 60 "$bins" irecovery ${args[@]+"${args[@]}"} >&2 || return $?; fi
+            sleep 2 || return $?
             if [ "${args[0]}" = -f ] && [ "${args[1]}" = "$dir/$(printf '%s' "$components"|jq -r .ibec)" ]; then fields=$(p5_wait_recovery "$bins" "$ecid" "$target") || return $?; fi
         done < <(printf '%s' "$commands"|jq -c '.[]')
     else printf '%s' "$commands"|jq -r '.[]|@sh' >&2; fi
