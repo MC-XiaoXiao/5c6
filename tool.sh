@@ -114,6 +114,9 @@ validate() {
 }
 detect_device() {
     local identity next_model next_ecid next_mode
+    # Keep the session's model/ECID binding, but never reuse a stale DFU mode
+    # after an exploit reset, disconnect, or failed identity query.
+    MODE=Unavailable
     progress "Detect connected device"
     identity=$(bash "$LIB/device.sh" --tools-dir "$HOST_TOOLS") || return $?
     IFS=$'\t' read -r next_model next_ecid next_mode <<< "$identity"
@@ -346,7 +349,10 @@ firmware_choices() {
 menu() {
     [ -t 0 ] || { fail 'Interactive menu requires a terminal'; return 2; }
     while :; do
-        printf '\n=== iPhone 5c iOS 6 Tool ===\nConnected: %s | ECID: %s | Mode: %s\n' "$MODEL" "$ECID" "$MODE"
+        printf '\n=== iPhone 5c iOS 6 Tool ===\nDevice: %s | ECID: %s | Mode: %s\n' "$MODEL" "$ECID" "$MODE"
+        if [ "$MODE" = Unavailable ]; then
+            printf 'Device identity is unavailable. Re-enter physical DFU, then select an operation to retry.\n' >&2
+        fi
         select_option 'Choose an operation' 'Generate firmware / Flash iOS 6' 'Tethered boot' 'Exit' || return 0
         case "$CHOICE" in
             2) return 0 ;;
@@ -364,16 +370,19 @@ menu() {
                                 # Wait for an explicit operation before looking for the device again.
                                 continue
                             fi
-                            EXECUTE=no; ERASE=no
-                        fi
+                            EXECUTE=no; ERASE=no; MODE=Unavailable
+                            continue
+                        else continue; fi
                     fi
                 fi ;;
             1)
                 if ready_for_usb; then
-                    EXECUTE=yes; ERASE=no; tethered_boot || :; EXECUTE=no
-                fi ;;
+                    EXECUTE=yes; ERASE=no
+                    if tethered_boot; then EXECUTE=no
+                    else EXECUTE=no; MODE=Unavailable; continue; fi
+                else continue; fi ;;
         esac
-        detect_device || return $?
+        detect_device || :
     done
 }
 

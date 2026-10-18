@@ -6,9 +6,60 @@ p5_ioreg_recovery_count() {
     # only the numeric IDs, including on libplist 2.3 without JSON coercion.
     xmllint --nonet --xpath 'count(//dict[key[.="idVendor"]/following-sibling::*[1][self::integer and .=1452]][key[.="idProduct"]/following-sibling::*[1][self::integer and (.=4647 or .=4736 or .=4737 or .=4738 or .=4739)]])' "$1"
 }
+p5_ioreg_recovery_serials() {
+    local nodes='//dict[key[.="idVendor"]/following-sibling::*[1][self::integer and .=1452]][key[.="idProduct"]/following-sibling::*[1][self::integer and (.=4647 or .=4736 or .=4737 or .=4738 or .=4739)]]' count index
+    count=$(p5_ioreg_recovery_count "$1") || return $?
+    for ((index=1; index<=count; index++)); do
+        xmllint --nonet --xpath "string(($nodes)[$index]/key[.=\"USB Serial Number\"]/following-sibling::*[1][self::string])" "$1" || return $?
+        printf '\n'
+    done
+}
+p5_linux_recovery_serials() {
+    local node vendor product serial
+    for node in "${1:-/sys/bus/usb/devices}"/*; do
+        [ -r "$node/idVendor" ] && [ -r "$node/idProduct" ] && [ -r "$node/serial" ] || continue
+        vendor=$(cat "$node/idVendor") || continue; product=$(cat "$node/idProduct") || continue
+        [ "$vendor" = 05ac ] || continue
+        case "$product" in 1227|1280|1281|1282|1283) ;; *) continue ;; esac
+        serial=$(cat "$node/serial") || continue
+        printf '%s\n' "$serial"
+    done
+}
+p5_5c_recovery_ecids() {
+    # All models share the recovery USB IDs. Read the same hexadecimal
+    # CPID/BDID/ECID tokens that libirecovery reads from the USB serial string.
+    LC_ALL=C awk '
+      function field(key, i, value) {
+        for(i=1;i<=NF;i++) if(index($i,key ":")==1) {
+          value=tolower(substr($i,length(key)+2));
+          sub(/^0x/,"",value); sub(/^0+/,"",value); return value
+        }
+        return ""
+      }
+      { chip=field("CPID"); board=field("BDID");
+        if(chip!="8950" || (board!="a" && board!="e")) next;
+        ecid=field("ECID");
+        if(ecid!~/^[0-9a-f]+$/ || length(ecid)>16) {bad=1; next}
+        print "0x" ecid
+      }
+      END {if(bad)exit 2}' | LC_ALL=C sort -u
+}
+p5_recovery_ecids() {
+    local serials
+    case "$(uname -s)" in
+        Linux) serials=$(p5_linux_recovery_serials) || return $? ;;
+        Darwin)
+            p5_temp || return $?
+            /usr/sbin/ioreg -p IOUSB -a > "$P5_TMP/usb.plist" || return $?
+            serials=$(p5_ioreg_recovery_serials "$P5_TMP/usb.plist") || return $? ;;
+        *) p5_fail 'Device detection requires Linux or macOS'; return 2 ;;
+    esac
+    printf '%s\n' "$serials" | p5_5c_recovery_ecids
+}
 p5_recovery_fields() {
-    local output
-    output=$(p5_run_timeout "${2:-15}" "$1" irecovery -q) || return $?
+    local output args=()
+    [ -z "${3:-}" ] || args=(-i "$3")
+    output=$(p5_run_timeout "${2:-15}" "$1" irecovery ${args[@]+"${args[@]}"} -q) || return $?
     printf '%s\n' "$output" | awk 'match($0,/^[A-Z]+:/) {key=substr($0,1,RLENGTH-1);value=substr($0,RLENGTH+1);sub(/^[ \t]+/,"",value);print key "\t" value}' | jq -Rne '[inputs|split("\t")|{key:.[0],value:.[1]}]|from_entries|select(.ECID)'
 }
 p5_check_dfu() {
