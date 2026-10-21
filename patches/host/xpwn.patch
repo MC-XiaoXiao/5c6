@@ -1,5 +1,5 @@
 diff --git a/dmg/filevault.c b/dmg/filevault.c
-index 3bda9a0..f7c75ed 100644
+index 3bda9a0..97f5b54 100644
 --- a/dmg/filevault.c
 +++ b/dmg/filevault.c
 @@ -51,9 +51,9 @@ static void writeChunk(FileVaultInfo* info) {
@@ -28,28 +28,41 @@ index 3bda9a0..f7c75ed 100644
  
  	AES_cbc_encrypt(buffer, info->chunk, info->blockSize, &(info->aesKey), msgDigest, AES_DECRYPT);
  }
-@@ -177,7 +177,7 @@ void fvClose(AbstractFile* file) {
+@@ -177,16 +177,16 @@ void fvClose(AbstractFile* file) {
  		cacheChunk(info, 0);
  	}
  
 -	HMAC_CTX_cleanup(&(info->hmacCTX));
-+	HMAC_CTX_free(info->hmacCTX);
- 
+-
  	if(info->headerDirty) {
  		if(info->version == 2) {
-@@ -234,8 +234,13 @@ AbstractFile* createAbstractFileFromFileVault(AbstractFile* file, const char* ke
+-			file->seek(file, 0);
++			/* The FileVault header belongs to the underlying file. */
++			info->file->seek(info->file, 0);
+ 			flipFileVaultV2Header(&(info->header.v2));
+-			file->write(file, &(info->header.v2), sizeof(FileVaultV2Header));
++			info->file->write(info->file, &(info->header.v2), sizeof(FileVaultV2Header));
+ 		}
+ 	}
+ 
++	HMAC_CTX_free(info->hmacCTX);
+ 	info->file->close(info->file);
+ 	free(info);
+ 	free(file);
+@@ -234,8 +234,14 @@ AbstractFile* createAbstractFileFromFileVault(AbstractFile* file, const char* ke
  		hmacKey[i] = curByte;
  	}
  
 -	HMAC_CTX_init(&(info->hmacCTX));
 -	HMAC_Init_ex(&(info->hmacCTX), hmacKey, sizeof(hmacKey), EVP_sha1(), NULL);
 +	info->hmacCTX = HMAC_CTX_new();
-+	if(info->hmacCTX == NULL) {
++	if(info->hmacCTX == NULL ||
++		HMAC_Init_ex(info->hmacCTX, hmacKey, sizeof(hmacKey), EVP_sha1(), NULL) != 1) {
++		HMAC_CTX_free(info->hmacCTX);
 +		free(info);
 +		free(toReturn);
 +		return NULL;
 +	}
-+	HMAC_Init_ex(info->hmacCTX, hmacKey, sizeof(hmacKey), EVP_sha1(), NULL);
  	AES_set_decrypt_key(aesKey, FILEVAULT_CIPHER_KEY_LENGTH * 8, &(info->aesKey));
  	AES_set_encrypt_key(aesKey, FILEVAULT_CIPHER_KEY_LENGTH * 8, &(info->aesEncKey));
  

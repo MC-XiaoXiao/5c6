@@ -43,23 +43,49 @@ p5_upgrade_restore_host() {
     p5_log "Installed native BasebandData host; previous binary/build retained in $build"
 }
 p5_build_custom() {
-    local out=$1 name row work="$1/build"
+    local out=$1 name row work="$1/build" status=0
     if [ -x "$out/dmg" ] && [ -x "$out/idevicerestore" ]; then p5_check_host_tools "$out" restore; return; fi
-    bash "$P5_ROOT/lib/deps.sh" build "$out" setup
-    for name in xpwn idevicerestore; do row=$(p5_source_tool "$name"); p5_fetch_locked "$row" "$out/sources/$name.tar.gz"; done
-    [ ! -e "$work/xpwn-source" ] || { p5_fail 'Incomplete source build retained; use a new tools directory'; return 2; }
-    mkdir -p "$work/xpwn-source"
-    bsdtar -xf "$out/sources/xpwn.tar.gz" -C "$work/xpwn-source" --strip-components 1 --no-same-owner
+    bash "$P5_ROOT/lib/deps.sh" build "$out" setup || return $?
+    for name in xpwn idevicerestore; do
+        row=$(p5_source_tool "$name") || return $?
+        p5_fetch_locked "$row" "$out/sources/$name.tar.gz" || return $?
+    done
+    mkdir -p "$work" || return $?
     (
-        p5_build_env
-        cd -- "$work/xpwn-source"
-        git apply --check "$P5_ROOT/patches/host/xpwn.patch"; git apply "$P5_ROOT/patches/host/xpwn.patch"
-        cmake -S "$work/xpwn-source" -B "$work/xpwn-build" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-        cmake --build "$work/xpwn-build" --target dmg-bin -j2
-        bash "$P5_ROOT/src/host/build-dmg.sh" --source "$work/xpwn-source" --build "$work/xpwn-build" --out "$work/explicit-zero-dmg"
-        bash "$P5_ROOT/src/host/build-restore.sh" --source-archive "$out/sources/idevicerestore.tar.gz" --out "$work/restore-host"
-    ) > "$work/build.log" 2>&1
-    cp -- "$work/explicit-zero-dmg/dmg" "$out/dmg"; cp -- "$work/restore-host/src/idevicerestore" "$out/idevicerestore"; chmod 755 "$out/dmg" "$out/idevicerestore"
+        # These directories are generated from locked archives. Re-extract on
+        # retry, including after a failure with an older version of the tool.
+        rm -rf -- "$work/xpwn-source" "$work/xpwn-build" "$work/explicit-zero-dmg" "$work/restore-host" || exit $?
+        mkdir -p "$work/xpwn-source" || exit $?
+        bsdtar -xf "$out/sources/xpwn.tar.gz" -C "$work/xpwn-source" --strip-components 1 --no-same-owner || exit $?
+        # The status handler below disables errexit in this subshell; each
+        # stage must stop explicitly so a later success cannot hide a failure.
+        p5_build_env || exit $?
+        cd -- "$work/xpwn-source" || exit $?
+        git apply --check "$P5_ROOT/patches/host/xpwn.patch" || exit $?
+        git apply "$P5_ROOT/patches/host/xpwn.patch" || exit $?
+        cmake -S "$work/xpwn-source" -B "$work/xpwn-build" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 || exit $?
+        cmake --build "$work/xpwn-build" --target dmg-bin -j2 || exit $?
+        # Include compiler output from the failed builder in the main log.
+        bash "$P5_ROOT/src/host/build-dmg.sh" --source "$work/xpwn-source" --build "$work/xpwn-build" --out "$work/explicit-zero-dmg" || {
+            status=$?
+            [ ! -f "$work/explicit-zero-dmg/build.log" ] || cat "$work/explicit-zero-dmg/build.log"
+            exit "$status"
+        }
+        bash "$P5_ROOT/src/host/build-restore.sh" --source-archive "$out/sources/idevicerestore.tar.gz" --out "$work/restore-host" || {
+            status=$?
+            [ ! -f "$work/restore-host/build.log" ] || cat "$work/restore-host/build.log"
+            exit "$status"
+        }
+    ) > "$work/build.log" 2>&1 || status=$?
+    if [ "$status" -ne 0 ]; then
+        printf '[FAIL] Host tool build failed (exit %s). Full log: %s\n' "$status" "$work/build.log" >&2
+        tail -n 60 "$work/build.log" >&2 || :
+        rm -rf -- "$work/xpwn-source" "$work/xpwn-build" "$work/explicit-zero-dmg" "$work/restore-host" || :
+        return "$status"
+    fi
+    cp -- "$work/explicit-zero-dmg/dmg" "$out/dmg" || return $?
+    cp -- "$work/restore-host/src/idevicerestore" "$out/idevicerestore" || return $?
+    chmod 755 "$out/dmg" "$out/idevicerestore" || return $?
     # Git tracks builders and patches. No script-hash receipt is required.
 }
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
