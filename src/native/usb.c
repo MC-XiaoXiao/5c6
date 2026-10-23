@@ -4,6 +4,9 @@
 #include "p5.h"
 #include <dlfcn.h>
 #include <strings.h>
+#include <unistd.h>
+
+enum { RECOVERY_NO_DEVICE = -1, RECOVERY_TIMEOUT = -11 };
 
 /* Stable libirecovery device-info ABI prefix through serial_string. Keeping
  * this prefix here avoids requiring development headers or a link-time USB
@@ -19,6 +22,7 @@ typedef struct {
   void *library, *client;
   int (*open)(void **client, uint64_t ecid);
   int (*close)(void *client);
+  int (*reset)(void *client);
   int (*mode)(void *client, int *mode);
   const RecoveryInfo *(*info)(void *client);
   int (*control)(void *client, uint8_t type, uint8_t request, uint16_t value,
@@ -49,8 +53,41 @@ static void transfer(Recovery *r, uint8_t type, uint8_t request,
   int result = r->control(r->client, type, request, 0, 0, data, length, timeout);
   if (result != length) {
     release(r);
+    if (result < 0)
+      die("iPwnder %s failed: libirecovery error %d%s (expected %u bytes)",
+          step, result, result == RECOVERY_TIMEOUT ? " / timeout" : "", length);
     die("iPwnder %s returned %d bytes (expected %u)", step, result, length);
   }
+}
+static void open_device(Recovery *r, uint64_t ecid, unsigned int board,
+                         unsigned int attempts) {
+  int result = RECOVERY_NO_DEVICE;
+  for (unsigned int attempt = 0; attempt < attempts; attempt++) {
+    result = r->open(&r->client, ecid);
+    if (!result && r->client)
+      break;
+    if (r->client) {
+      r->close(r->client);
+      r->client = NULL;
+    }
+    if (attempt + 1 < attempts)
+      sleep(1);
+  }
+  if (result || !r->client) {
+    release(r);
+    die("Cannot open iPwnder device for ECID 0x%llx (%d); re-enter physical DFU",
+        (unsigned long long)ecid, result);
+  }
+  int mode = 0;
+  const RecoveryInfo *info = r->info(r->client);
+  checked(r, !r->mode(r->client, &mode) && mode == 0x1227 && info &&
+                 info->ecid == ecid && info->cpid == 0x8950 &&
+                 info->bdid == board && info->srtg &&
+                 !strcmp(info->srtg, "iBoot-1145.3"),
+          "iPwnder DFU device identity differs");
+  const char *marker = info->serial_string ? strstr(info->serial_string, "PWND:[") : NULL;
+  checked(r, marker && !strncasecmp(marker + 6, "ipwnder]", 8),
+          "Expected iPwnder's A6 DFU request handler");
 }
 static void check_image(Blob image, unsigned int board) {
   need(image.n >= 20 && image.n <= 256 * 1024 &&
@@ -120,50 +157,77 @@ int usb_main(int argc, char **argv) {
     die("Cannot load libirecovery %s: %s", argv[2], dlerror());
   r.open = (int (*)(void **, uint64_t))symbol(r.library, "irecv_open_with_ecid");
   r.close = (int (*)(void *))symbol(r.library, "irecv_close");
+  r.reset = (int (*)(void *))symbol(r.library, "irecv_reset");
   r.mode = (int (*)(void *, int *))symbol(r.library, "irecv_get_mode");
   r.info = (const RecoveryInfo *(*)(void *))symbol(r.library, "irecv_get_device_info");
   r.control = (int (*)(void *, uint8_t, uint8_t, uint16_t, uint16_t,
                       unsigned char *, uint16_t, unsigned int))
       symbol(r.library, "irecv_usb_control_transfer");
-  int result = r.open(&r.client, ecid);
-  if (result || !r.client) {
-    release(&r);
-    die("Cannot open iPwnder device for ECID 0x%llx (%d)",
-        (unsigned long long)ecid, result);
-  }
-  int mode = 0;
-  const RecoveryInfo *info = r.info(r.client);
-  checked(&r, !r.mode(r.client, &mode) && mode == 0x1227 && info &&
-                  info->ecid == ecid && info->cpid == 0x8950 &&
-                  info->bdid == board && info->srtg &&
-                  !strcmp(info->srtg, "iBoot-1145.3"),
-          "iPwnder DFU device identity differs");
-  const char *marker = info->serial_string ? strstr(info->serial_string, "PWND:[") : NULL;
-  checked(&r, marker && !strncasecmp(marker + 6, "ipwnder]", 8),
-          "Expected iPwnder's A6 DFU request handler");
+  open_device(&r, ecid, board, 1);
+  for (unsigned int attempt = 1; attempt <= 2; attempt++) {
+    /* Match ipwnder_lite's exec_payload: reset/re-enumerate and reopen before
+     * the 16-byte primer. A PWND serial alone does not establish USB readiness.
+     * Never reset an unverified device or reuse a handle across the reset.
+     */
+    fprintf(stderr, "iPwnder: reset and reopen DFU for iBSS (attempt %u/2)\n", attempt);
+    int result = r.reset(r.client);
+    if (result) {
+      release(&r);
+      die("iPwnder DFU reset failed: libirecovery error %d", result);
+    }
+    r.close(r.client);
+    r.client = NULL;
+    sleep(1);
+    open_device(&r, ecid, board, 5);
 
-  unsigned char blank[16] = {0};
-  transfer(&r, 0x21, 1, blank, 16, 5000, "DFU preparation");
-  transfer(&r, 0x21, 1, NULL, 0, 100, "DFU preparation finish");
-  transfer(&r, 0xa1, 3, blank, 6, 100, "first DFU status");
-  transfer(&r, 0xa1, 3, blank, 6, 100, "second DFU status");
-  for (size_t at = 0; at < image.n;) {
-    size_t count = image.n - at;
-    if (count > 0x800)
-      count = 0x800;
-    transfer(&r, 0x21, 1, image.p + at, count, 5000, "iBSS upload");
-    at += count;
+    unsigned char blank[16] = {0};
+    transfer(&r, 0x21, 1, blank, 16, 5000, "DFU preparation");
+    transfer(&r, 0x21, 1, NULL, 0, 100, "DFU preparation finish");
+    transfer(&r, 0xa1, 3, blank, 6, 100, "first DFU status");
+    transfer(&r, 0xa1, 3, blank, 6, 100, "second DFU status");
+    size_t at = 0;
+    while (at < image.n) {
+      size_t count = image.n - at;
+      if (count > 0x800)
+        count = 0x800;
+      result = r.control(r.client, 0x21, 1, 0, 0, image.p + at, count, 5000);
+      if (result != (int)count) {
+        /* A timed-out OUT request may have delivered a partial chunk. Reset
+         * and replay the whole primer/image once; never resend just that chunk.
+         */
+        if (result == RECOVERY_TIMEOUT && attempt == 1) {
+          fprintf(stderr, "iPwnder: iBSS upload timed out at offset 0x%zx/%zu "
+                          "(%zu-byte chunk); restarting the full upload\n",
+                  at, image.n, count);
+          break;
+        }
+        release(&r);
+        if (result < 0)
+          die("iPwnder iBSS upload failed at offset 0x%zx/%zu: libirecovery "
+              "error %d%s (expected %zu bytes); re-enter physical DFU and retry",
+              at, image.n, result, result == RECOVERY_TIMEOUT ? " / timeout" : "", count);
+        die("iPwnder iBSS upload was short at offset 0x%zx/%zu: %d of %zu bytes; "
+            "re-enter physical DFU and retry", at, image.n, result, count);
+      }
+      at += count;
+    }
+    if (at < image.n)
+      continue;
+    result = r.control(r.client, 0xa1, 2, 0xffff, 0, NULL, 0, 5000);
+    /* The handler jumps into iBSS without completing the control request. The
+     * macOS backend can return NO_DEVICE or TIMEOUT at that boundary. Do not
+     * replay the upload here: Bash verifies the DFU identity and unchanged nonce.
+     */
+    if (result != 0 && result != RECOVERY_NO_DEVICE && result != RECOVERY_TIMEOUT) {
+      release(&r);
+      die("iPwnder execute request failed: libirecovery error %d", result);
+    }
+    release(&r);
+    printf("{\"ipwnder_execute_requested\":true,\"bytes\":%zu,\"control_result\":%d}\n",
+           image.n, result);
+    free(image.p);
+    return 1;
   }
-  result = r.control(r.client, 0xa1, 2, 0xffff, 0, NULL, 0, 5000);
-  /* The handler jumps into iBSS without completing the control request. The
-   * macOS backend can return NO_DEVICE (-1) or TIMEOUT (-11) at that boundary.
-   * Bash must still verify the re-enumerated DFU identity and unchanged nonce.
-   */
-  checked(&r, result == 0 || result == -1 || result == -11,
-          "iPwnder execute request failed");
-  release(&r);
-  printf("{\"ipwnder_execute_requested\":true,\"bytes\":%zu,\"control_result\":%d}\n",
-         image.n, result);
-  free(image.p);
-  return 1;
+  die("iPwnder iBSS upload attempts exhausted");
+  return 0;
 }

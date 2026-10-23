@@ -401,9 +401,14 @@ fi
 mkdir -p "$ROOT/runtime/logs"
 RUN_LOG=$(mktemp "$ROOT/runtime/logs/$(date '+%Y%m%d-%H%M%S')-$COMMAND.log.XXXXXX")
 export P5_TOOL_LOG_DIR="$RUN_LOG.tools"
+# Bash 3.2 cannot wait for a process-substitution PID. Start tee as a regular
+# child, with a FIFO so stdin remains attached to the user's terminal.
+LOG_FIFO="$RUN_LOG.pipe"
+mkfifo -m 600 "$LOG_FIFO"
 exec 3>&1 4>&2
-exec > >(tee -a "$RUN_LOG") 2>&1
+(trap '' INT TERM; exec tee -a "$RUN_LOG" < "$LOG_FIFO" 3>&- 4>&-) &
 LOG_TEE_PID=$!
+exec > "$LOG_FIFO" 2>&1
 finish_log() {
     local status=$?
     trap - EXIT
@@ -414,6 +419,7 @@ finish_log() {
     fi
     exec 1>&3 2>&4
     wait "$LOG_TEE_PID" || printf 'Warning: log writer failed: %s\n' "$RUN_LOG" >&2
+    rm -f -- "$LOG_FIFO"
     exec 3>&- 4>&-
     exit "$status"
 }
