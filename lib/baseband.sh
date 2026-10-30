@@ -103,7 +103,7 @@ p5_query_parameters() {
 p5_normal_query() {
     local model=$1 ecid=$2 bins=$3 udid query devices
     p5_temp
-    devices=$(p5_normal_devices) || return $?
+    devices=$(p5_normal_devices "$bins") || return $?
     while IFS= read -r udid; do
         [ -n "$udid" ] || continue
         p5_run_timeout 15 "$bins" ideviceinfo -u "$udid" -x > "$P5_TMP/normal-query.plist" || return $?

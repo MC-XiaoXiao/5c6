@@ -44,22 +44,51 @@ p5_5c_recovery_ecids() {
       }
       END {if(bad)exit 2}' | LC_ALL=C sort -u
 }
+p5_ioreg_snapshot() {
+    p5_run_timeout 10 "$(p5_host_bins)" /usr/sbin/ioreg -a -l -p "$1"
+}
+p5_macos_recovery_serials() {
+    local plane serials status
+    p5_temp || return $?
+    # Read both registry views: the USB plane alone need not expose every
+    # service's identity. Merge before filtering/counting to retain the
+    # multiple-device guard; libirecovery also discovers devices via IOService.
+    for plane in IOUSB IOService; do
+        status=0
+        p5_ioreg_snapshot "$plane" > "$P5_TMP/usb-$plane.plist" 2> "$P5_TMP/usb-$plane.err" || status=$?
+        if [ "$status" = 0 ]; then
+            serials=$(p5_ioreg_recovery_serials "$P5_TMP/usb-$plane.plist" 2>> "$P5_TMP/usb-$plane.err") || status=$?
+        fi
+        printf '%s\n' "$status" > "$P5_TMP/usb-$plane.status" || return $?
+        if [ "$status" != 0 ]; then
+            cat "$P5_TMP/usb-$plane.err" >&2
+            # IOService is the authoritative, complete service inventory.
+            # The supplementary USB plane may be unavailable on the host.
+            [ "$plane" = IOUSB ] || return "$status"
+            P5_LOG_LEVEL=WARN p5_log 'IOUSB registry view unavailable; checking IOService instead'
+            continue
+        fi
+        printf '%s\n' "$serials"
+    done
+}
 p5_recovery_ecids() {
     local serials
     case "$(uname -s)" in
         Linux) serials=$(p5_linux_recovery_serials) || return $? ;;
-        Darwin)
-            p5_temp || return $?
-            /usr/sbin/ioreg -p IOUSB -a > "$P5_TMP/usb.plist" || return $?
-            serials=$(p5_ioreg_recovery_serials "$P5_TMP/usb.plist") || return $? ;;
+        Darwin) serials=$(p5_macos_recovery_serials) || return $? ;;
         *) p5_fail 'Device detection requires Linux or macOS'; return 2 ;;
     esac
     printf '%s\n' "$serials" | p5_5c_recovery_ecids
 }
 p5_recovery_fields() {
-    local output args=()
+    local output status=0 record=${4:-} args=()
     [ -z "${3:-}" ] || args=(-i "$3")
-    output=$(p5_run_timeout "${2:-15}" "$1" irecovery ${args[@]+"${args[@]}"} -q) || return $?
+    output=$(p5_run_timeout "${2:-15}" "$1" irecovery ${args[@]+"${args[@]}"} -q) || status=$?
+    if [ -n "$record" ]; then
+        printf '%s\n' "$output" > "$record" || return $?
+        printf '%s\n' "$status" > "$record.status" || return $?
+    fi
+    [ "$status" = 0 ] || return "$status"
     printf '%s\n' "$output" | awk 'match($0,/^[A-Z]+:/) {key=substr($0,1,RLENGTH-1);value=substr($0,RLENGTH+1);sub(/^[ \t]+/,"",value);print key "\t" value}' | jq -Rne '[inputs|split("\t")|{key:.[0],value:.[1]}]|from_entries|select(.ECID)'
 }
 p5_check_dfu() {

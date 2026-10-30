@@ -64,7 +64,7 @@ p5_xpwn_pack() {
     p5_run_logged quiet 180 "$(p5_host_bins)" "Pack ${output##*/}" xpwntool "$input" "$output" -t "$template"
 }
 p5_normal_devices() {
-    p5_run_timeout 15 "$(p5_host_bins)" idevice_id -l
+    p5_run_timeout 15 "${1:-$(p5_host_bins)}" idevice_id -l
 }
 p5_remote_member() {
     local url=$1 member=$2 output=$3 result=0
