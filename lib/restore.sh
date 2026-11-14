@@ -83,6 +83,8 @@ p5_restore_prepare() {
     for name in mediaserverd SpringBoard locationd CommCenter BTServer BlueTool; do
         path="System/Library/LaunchDaemons/com.apple.$name.plist"; p5_hfs_extract "$bins" "$original_root" "$path" "$root/$path"
     done
+    name="fairplayd.$(printf '%s' "$report"|jq -r '.source_firmware.input_prefix|ascii_upcase')"
+    path="System/Library/LaunchDaemons/com.apple.$name.plist"; p5_hfs_extract "$bins" "$original_root" "$path" "$root/$path"
     for name in N42AP.plist N41AP.plist; do path="System/Library/CoreServices/SpringBoard.app/$name"; p5_hfs_extract "$bins" "$original_root" "$path" "$root/$path" 2>/dev/null || :; done
     version=$(p5_plist "$root/System/Library/CoreServices/SystemVersion.plist")
     jq -ne --argjson version "$version" --argjson target "$target" '$version.ProductVersion==$target.ProductVersion and $version.ProductBuildVersion==$target.ProductBuildVersion' >/dev/null || { p5_fail 'RootFS version differs'; return 2; }
