@@ -44,7 +44,9 @@ p5_config() {
         require(.Label==("com.apple."+$name);"Unexpected Bluetooth plist")|.EnvironmentVariables=(.EnvironmentVariables//{})
         |.EnvironmentVariables.DYLD_INSERT_LIBRARIES=""|.EnvironmentVariables._MSSafeMode="1"
       elif ($name=="fairplayd.N41" or $name=="fairplayd.N42") and $option=="iphone5c" then
-        .LimitLoadToHardware.machine|=reduce ["iPhone5,3","iPhone5,4"][] as $model (. ; if index($model) then . else .+[$model] end)
+        .Program="/usr/sbin/fairplayd.H2"
+        |inject(["/usr/local/lib/project5c-fairplay-compat.dylib"])
+        |.LimitLoadToHardware.machine|=reduce ["iPhone5,3","iPhone5,4"][] as $model (. ; if index($model) then . else .+[$model] end)
       elif $name=="CommCenter" and (["n48-native","n48-baseband","n49-native","n49-baseband"]|index($option)) then
         ($option|split("-")) as $parts|require((.LimitLoadToHardware.machine|type)=="array";"Invalid hardware whitelist")
         |(if $parts[0]=="n48" then "iPhone5,3" else "iPhone5,4" end) as $model

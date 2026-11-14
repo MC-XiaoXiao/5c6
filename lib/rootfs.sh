@@ -30,6 +30,8 @@ p5_rootfs_plan() {
     jq -ne --argjson report "$report" --argjson version "$version" '$report.target.ProductVersion==$version.ProductVersion and $report.target.ProductBuildVersion==$version.ProductBuildVersion' >/dev/null || { p5_fail 'RootFS differs from the bundle source'; return 2; }
     ids=$(printf '%s' "$report"|jq '[.files[].id]'); model=$(printf '%s' "$report"|jq -r .target.ProductType); board=$(printf '%s' "$report"|jq -r .target.HardwareModel)
     name="fairplayd.$(printf '%s' "$report"|jq -r '.source_firmware.input_prefix|ascii_upcase')"
+    p5_root_add usr/sbin/fairplayd.H2 "$P5_ROOT/resources/firmware/fairplayd.H2" 493
+    p5_root_add usr/local/lib/project5c-fairplay-compat.dylib "$P5_ROOT/resources/fairplay-compat.dylib" 493
     p5_root_config "$name" iphone5c
     while IFS= read -r row; do
         path=$(printf '%s' "$row"|jq -r .path); source=$(p5_relative "$bundle" "$path")
