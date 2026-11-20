@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The gyro adapter executes code hosted by the appended BMA kernel module.
-# Declare that dependency before either driver can probe during a restore.
+# Legacy gyro adapters execute code hosted by the appended BMA module.
+# Add the dependency to kernels that still execute that adapter.
 p5_restore_kernel_u32() {
     local bytes
     bytes=$(p5_hex_range "$1" "$2" 4) || return $?
@@ -25,6 +25,11 @@ p5_restore_sensor_kernel() {
         p5_fail 'Unsupported gyro/BMA adapter layout'; return 2;
     }
     p5_native kext-extract "$temp/kernel" com.apple.driver.AppleEmbeddedGyro "$temp/gyro" || return $?
+    # The local adapter already runs within the gyro module.
+    if [ "$(p5_sha "$temp/gyro")" = a1de857e04a8b35617a6022b9d4b76c04a3dfc7e891ac55dc0e81d50ba8f7073 ]; then
+        cp -- "$input" "$output" || return $?
+        printf 'null\n'; return
+    fi
     [ "$(p5_hex_range "$temp/gyro" 0x2710 6)" = 7bf028b400bf ] || {
         p5_fail 'Gyro adapter branch differs'; return 2;
     }
