@@ -171,7 +171,7 @@ p5_build() {
     while IFS= read -r id; do p5_build_one "$id"; done < <(printf '%s' "$P5_ACTIVE"|jq -r '.[]')
     target=$(p5_target "$model" | jq 'del(.board_id)')
     if [ -f "$P5_INPUTS/SystemVersion.plist" ]; then target=$(jq -n --argjson target "$target" --argjson version "$(p5_plist "$P5_INPUTS/SystemVersion.plist")" '$target+($version|{ProductVersion,ProductBuildVersion})'); fi
-    jq -n --arg jailbreak "$jailbreak" --argjson active "$P5_ACTIVE" --argjson target "$target" --arg profile "$profile" --arg extras "$extras" --argjson source "$P5_SOURCE" --slurpfile receipts "$P5_STAGE/receipts.json" '{schema:1,kernel_layout:7,pmgr:{revision:1,period_cell_bytes:4,boost_frequency_hz:1296000000},jailbreak_kernel:{enabled:($jailbreak=="yes"),revision:1},profile:$profile,extras:($extras|split(",")|map(select(length>0))),selected:$active,target:$target,files:[],input_receipts:$receipts[0],source_firmware:$source}' > "$P5_STAGE/bundle/build.json"
+    jq -n --arg jailbreak "$jailbreak" --argjson active "$P5_ACTIVE" --argjson target "$target" --arg profile "$profile" --arg extras "$extras" --argjson source "$P5_SOURCE" --slurpfile receipts "$P5_STAGE/receipts.json" '{schema:1,kernel_layout:7,pmgr:{revision:1,period_cell_bytes:4,boost_frequency_hz:1272000000},jailbreak_kernel:{enabled:($jailbreak=="yes"),revision:1},profile:$profile,extras:($extras|split(",")|map(select(length>0))),selected:$active,target:$target,files:[],input_receipts:$receipts[0],source_firmware:$source}' > "$P5_STAGE/bundle/build.json"
     while IFS= read -r id; do
         local spec; spec=$(p5_spec "$id" "$model"); path=$(printf '%s' "$spec"|jq -r .destination); mode=$(printf '%s' "$spec"|jq -r .mode)
         local output; output=$(p5_relative "$P5_STAGE/bundle" "$path"); mkdir -p "$(dirname -- "$output")"; cp -- "$P5_STAGE/cache/$id" "$output"; printf -v mode '%o' "$mode"; chmod "$mode" "$output"
@@ -185,7 +185,7 @@ p5_verify_bundle() {
     report="$bundle/build.json"
     jq -e '(.files|length)>0 and ([.files[].id]|length)==([.files[].id]|unique|length)' "$report" >/dev/null || return 2
     if jq -e '.files|any(.id=="ibss") and any(.id=="ibec")' "$report" >/dev/null; then
-        jq -e '.pmgr=={revision:1,period_cell_bytes:4,boost_frequency_hz:1296000000}' "$report" >/dev/null || { p5_fail 'Rebuild bundle with PMGR handoff ABI revision 1'; return 2; }
+        jq -e '.pmgr=={revision:1,period_cell_bytes:4,boost_frequency_hz:1272000000}' "$report" >/dev/null || { p5_fail 'Rebuild bundle for the stock iPhone 5c CPU frequencies'; return 2; }
     fi
     model=$(jq -r '.target.ProductType' "$report"); p5_target "$model" >/dev/null || return $?
     while IFS=$'\t' read -r id path sha size; do

@@ -52,8 +52,8 @@ p5_apply_fixed() {
     p5_check_file "$output" "$output_size" "$output_sha" || return $?
     jq -nc --arg patch "$patch_path" --arg source "$sha" --arg output "$output_sha" '{format:"BSDIFF40",patch:$patch,source_sha256:$source,output_sha256:$output}'
 }
-# Dense u32 handoff and the retained 1296 MHz boost use the same checked deltas
-# for stock, normal-boot and restore iBoot-1940.1.75 binaries on N48 and N49.
+# iBSS keeps the stock 5c table or restores it on previously boosted inputs.
+# iBEC writes the periods as consecutive u32 cells for iOS 6.
 p5_patch_pmgr_boot() {
     local kind=$1 input=$2 output=$3 id model info
     [ "$input" != "$output" ] || { p5_fail 'PMGR patch requires a separate output'; return 2; }
@@ -65,7 +65,7 @@ p5_patch_pmgr_boot() {
     info=$(jq -nc --arg id "$id" --arg model "$model" '{id:$id,model:$model}') || return $?
     p5_apply_fixed "$input" "$info" '' "$output" yes >/dev/null || return $?
     case "$kind" in
-        iBSS) printf '{"cpu_boost_hz":1296000000,"voltage_indices_preserved":true}\n' ;;
+        iBSS) printf '{"cpu_boost_hz":1272000000,"voltage_indices_preserved":true}\n' ;;
         iBEC) printf '{"period_cell_bytes":4,"reserved_word_store_removed":true}\n' ;;
     esac
 }
